@@ -2,7 +2,7 @@
   <div class="login-container" :class="{ dark: isDark }">
     <div class="login-card">
       <div class="login-header">
-        <h1 class="login-title">CloudClaw</h1>
+        <a href="http://cloudclaw.run" target="_blank" rel="noopener" style="text-decoration:none;color:inherit"><h1 class="login-title">CloudClaw</h1></a>
         <p class="login-subtitle">AI Agent Platform</p>
       </div>
 
