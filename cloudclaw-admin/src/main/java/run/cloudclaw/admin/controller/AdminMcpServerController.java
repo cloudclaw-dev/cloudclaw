@@ -209,8 +209,22 @@ public class AdminMcpServerController {
      * Mask sensitive values in the env JSON for API responses.
      */
     private McpServer maskEnv(McpServer server) {
+        // Create a shallow copy to avoid mutating the JPA entity
+        McpServer copy = new McpServer();
+        copy.setId(server.getId());
+        copy.setName(server.getName());
+        copy.setDescription(server.getDescription());
+        copy.setUrl(server.getUrl());
+        copy.setEnabled(server.getEnabled());
+        copy.setTransport(server.getTransport());
+        copy.setCommand(server.getCommand());
+        copy.setArgs(server.getArgs());
+        copy.setCreatedAt(server.getCreatedAt());
+        copy.setUpdatedAt(server.getUpdatedAt());
+        copy.setEnv(server.getEnv()); // will be masked below
+
         if (server.getEnv() == null || server.getEnv().isEmpty()) {
-            return server;
+            return copy;
         }
         try {
             String envJson = cryptoService.decrypt(server.getEnv());
@@ -225,7 +239,7 @@ public class AdminMcpServerController {
                         obj.put(key, "****");
                     }
                 });
-                server.setEnv(objectMapper.writeValueAsString(node));
+                copy.setEnv(objectMapper.writeValueAsString(node));
             }
         } catch (Exception e) {
             // If decryption/parsing fails, just mask the whole thing
