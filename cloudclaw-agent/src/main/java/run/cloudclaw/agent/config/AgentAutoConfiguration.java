@@ -1,0 +1,45 @@
+package run.cloudclaw.agent.config;
+
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.boot.autoconfigure.AutoConfiguration;
+import org.springframework.context.annotation.Bean;
+import org.springframework.context.annotation.ComponentScan;
+import org.springframework.data.jpa.repository.config.EnableJpaRepositories;
+import org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor;
+
+import java.util.concurrent.Executor;
+import java.util.concurrent.ThreadPoolExecutor;
+
+/**
+ * Auto-configuration for the CloudClaw Agent module.
+ * <p>
+ * Scans and registers all agent-related components including:
+ * <ul>
+ *   <li>AgentConfigService - agent configuration loading and caching</li>
+ *   <li>ChatEngine - core chat engine with Spring AI integration</li>
+ *   <li>PromptAssembler - system prompt assembly with memory and skills</li>
+ *   <li>AgentRepository and related JPA repositories</li>
+ * </ul>
+ */
+@AutoConfiguration
+@ComponentScan(basePackages = "run.cloudclaw.agent")
+@Slf4j
+public class AgentAutoConfiguration {
+
+    public AgentAutoConfiguration() {
+        log.info("CloudClaw Agent module auto-configuration initialized");
+    }
+
+    @Bean("chatExecutor")
+    public Executor chatExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(16);
+        executor.setQueueCapacity(100);
+        executor.setThreadNamePrefix("chat-async-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.initialize();
+        log.info("Chat async executor initialized: core=4, max=16, queue=100");
+        return executor;
+    }
+}
