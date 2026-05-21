@@ -162,8 +162,10 @@ const handleTest = async (row: any) => {
 }
 
 const handleToggle = async (row: any) => {
-  await updateMcpServer(row.id, { enabled: row.enabled })
-  ElMessage.success(row.enabled ? t('common.enabled') : t('agent.stopped'))
+  try {
+    await updateMcpServer(row.id, { enabled: row.enabled })
+    ElMessage.success(row.enabled ? t('common.enabled') : t('agent.stopped'))
+  } catch { row.enabled = !row.enabled }
 }
 
 const handleDelete = async (id: string) => {
