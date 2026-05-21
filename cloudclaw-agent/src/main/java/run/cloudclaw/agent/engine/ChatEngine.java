@@ -253,6 +253,8 @@ public class ChatEngine {
         // Run LLM in a separate thread so cancellation of the SSE flux
         // does NOT cancel the LLM call.
         Thread chatThread = new Thread(() -> {
+            // Bind sandbox context to this thread (SandboxContext uses ConcurrentHashMap + ThreadLocal)
+            SandboxContext.bindToThread(sessionId);
             long startTime = System.currentTimeMillis();
             try {
                 requestSpec.stream()
@@ -392,8 +394,8 @@ public class ChatEngine {
                 log.error("Chat thread error for session {}: {}", sessionId, e.getMessage(), e);
                 sink.tryEmitError(e);
             } finally {
-                // Don't close MCP clients here - they are cached and reused
-                // MCP clients are managed by createMcpClient cache
+                closeMcpClients(createdMcpClients);
+                SandboxContext.unbindFromThread();
             }
         });
         chatThread.setName("chat-" + sessionId);
@@ -806,6 +808,9 @@ public class ChatEngine {
             MemoryTools.clearContext(userId);
             SandboxContext.clear();
 
+            // Close MCP clients created for this request
+            closeMcpClients(createdMcpClients);
+
             // Trigger session compression
             try {
                 sessionCompressor.compressIfNeeded(sessionId, config.getModelId(),
@@ -854,6 +859,6 @@ public class ChatEngine {
             } catch (Exception e) {
                 log.warn("Failed to generate title for session {}: {}", sessionId, e.getMessage());
             }
-        });
+        }, chatExecutor);
     }
 }
