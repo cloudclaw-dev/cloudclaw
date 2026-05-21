@@ -1,0 +1,11 @@
+# Production logging profile - less verbose
+# Usage: --spring.profiles.active=standalone,prod
+
+logging:
+  level:
+    run.cloudclaw: INFO
+    run.cloudclaw.agent.engine.ChatEngine: INFO
+    io.modelcontextprotocol: WARN
+    org.springframework.ai: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
