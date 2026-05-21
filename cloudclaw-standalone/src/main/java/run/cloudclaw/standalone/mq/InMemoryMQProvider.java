@@ -11,7 +11,6 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.BlockingQueue;
-import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.CopyOnWriteArrayList;
 import java.util.concurrent.Executors;
@@ -36,6 +35,11 @@ public class InMemoryMQProvider implements MessageQueueProvider, AutoCloseable {
         t.setDaemon(true);
         return t;
     });
+    private final ScheduledExecutorService subscriberPool = Executors.newScheduledThreadPool(4, r -> {
+        Thread t = new Thread(r, "inmemory-mq-sub");
+        t.setDaemon(true);
+        return t;
+    });
 
     @Override
     public MessagePublisher createPublisher() {
@@ -55,6 +59,7 @@ public class InMemoryMQProvider implements MessageQueueProvider, AutoCloseable {
     @Override
     public void close() {
         scheduler.shutdown();
+        subscriberPool.shutdown();
         topicQueues.clear();
         log.info("InMemoryMQProvider shut down");
     }
@@ -105,7 +110,7 @@ public class InMemoryMQProvider implements MessageQueueProvider, AutoCloseable {
             log.info("Subscribing to topic: {}, group: {}", topic, group);
             BlockingQueue<CloudMessage> queue = getOrCreateQueue(topic, group);
 
-            CompletableFuture.runAsync(() -> {
+            subscriberPool.submit(() -> {
                 while (!Thread.currentThread().isInterrupted()) {
                     try {
                         CloudMessage message = queue.take();
@@ -118,11 +123,7 @@ public class InMemoryMQProvider implements MessageQueueProvider, AutoCloseable {
                         log.error("Error handling message on topic: {}", topic, e);
                     }
                 }
-            }, Executors.newSingleThreadExecutor(r -> {
-                Thread t = new Thread(r, "inmemory-mq-" + topic + "-" + group);
-                t.setDaemon(true);
-                return t;
-            }));
+            });
         }
 
         @Override
