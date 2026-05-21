@@ -145,7 +145,7 @@
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import { Reading, Plus, Search, Upload } from '@element-plus/icons-vue'
-import { getSkills, uploadSkillZip, updateSkill, deleteSkill, getSkillFiles, saveSkillFile, deleteSkillFile } from '@/api/admin'
+import { getSkills, uploadSkillZip, updateSkill, deleteSkill, getSkillFiles, getSkillFile, saveSkillFile, deleteSkillFile } from '@/api/admin'
 import '@/assets/admin.css'
 import { useMobile } from '@/composables/useMobile'
 import { useI18n } from 'vue-i18n'
@@ -266,10 +266,16 @@ const loadFiles = async (skillId: string) => {
   finally { filesLoading.value = false }
 }
 
-const openFileEditor = (file: any) => {
+const openFileEditor = async (file: any) => {
   editingFile.value = file
-  fileContent.value = file.content || ''
+  fileContent.value = ''
   fileEditorVisible.value = true
+  try {
+    const res: any = await getSkillFile(currentSkill.value.id, file.filePath)
+    fileContent.value = res?.data?.content ?? res?.data ?? file.content ?? ''
+  } catch {
+    fileContent.value = file.content || ''
+  }
 }
 
 const handleSaveFile = async () => {
