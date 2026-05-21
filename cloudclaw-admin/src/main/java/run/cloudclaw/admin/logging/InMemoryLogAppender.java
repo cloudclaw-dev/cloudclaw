@@ -28,11 +28,13 @@ public class InMemoryLogAppender extends AppenderBase<ILoggingEvent> {
 
     @Override
     protected void append(ILoggingEvent event) {
+        String message = event.getFormattedMessage();
+        if (message == null) message = "";
         Map<String, String> entry = Map.of(
                 "time", TIME_FMT.format(Instant.ofEpochMilli(event.getTimeStamp())),
-                "level", event.getLevel().toString().toLowerCase(),
-                "logger", event.getLoggerName(),
-                "message", event.getFormattedMessage()
+                "level", event.getLevel() != null ? event.getLevel().toString().toLowerCase() : "info",
+                "logger", event.getLoggerName() != null ? event.getLoggerName() : "",
+                "message", message
         );
         buffer.addLast(entry);
         while (buffer.size() > maxSize) {
