@@ -3,10 +3,12 @@
     <el-container class="main-container">
       <!-- Left Nav Bar -->
       <el-aside :width="navCollapsed ? '64px' : '200px'" class="nav-bar" :class="{ collapsed: navCollapsed }">
+        <a href="http://cloudclaw.run" target="_blank" rel="noopener" class="nav-bar-header-link">
         <div class="nav-bar-header">
           <img src="@/assets/logo.png" alt="CC" class="nav-logo" />
           <span v-if="!navCollapsed" class="nav-brand">CloudClaw</span>
         </div>
+        </a>
         <div class="nav-bar-menu">
           <div class="nav-bar-item" :class="{ active: $route.path === '/' || $route.path === '' }" @click="$router.push('/')" :title="navCollapsed ? t('nav.chat') : ''">
             <el-icon :size="20"><ChatDotRound /></el-icon>
