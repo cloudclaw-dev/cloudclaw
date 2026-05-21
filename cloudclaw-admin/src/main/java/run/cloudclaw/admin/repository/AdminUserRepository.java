@@ -10,4 +10,5 @@ import java.util.UUID;
  * Provides standard CRUD operations for user management.
  */
 public interface AdminUserRepository extends JpaRepository<User, UUID> {
+    boolean existsByUsername(String username);
 }
