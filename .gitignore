@@ -1,0 +1,27 @@
+target/
+*.class
+node_modules/
+.DS_Store
+.idea/
+*.iml
+*.log
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Temp files
+tmp*
+NUL
+dev/
+cloudclaw-app/src/main/resources/static/chat/
+org/
+*.jar
+*.tar
+*.zip
+cloudclaw-archive*
+tmp_build.log
+startup_stdout.log
+startup_stderr.log
+dist/
+Dockerfile.simple
