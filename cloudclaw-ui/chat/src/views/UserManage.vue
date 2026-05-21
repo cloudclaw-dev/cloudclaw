@@ -34,7 +34,7 @@
           </div>
           <div class="mobile-card-actions">
             <el-button size="small" @click="openDialog(item)">{{ $t('common.edit') }}</el-button>
-            <el-button size="small" type="danger" @click="deleteUser(item)">{{ $t('common.delete') }}</el-button>
+            <el-button size="small" type="danger" @click="confirmDeleteUser(item)">{{ $t('common.delete') }}</el-button>
           </div>
         </div>
       </el-card>
@@ -43,7 +43,7 @@
 
           <el-table :data="tableData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
         <el-table-column prop="username" :label="$t('user.username')" width="150" />
-        <el-table-column prop="email" :label="$t('user.username')" min-width="200" />
+        <el-table-column prop="email" :label="$t('user.email')" min-width="200" />
         <el-table-column prop="role" :label="$t('user.role')" width="120">
           <template #default="{ row }">
             <el-tag :type="row.role === 'ADMIN' ? 'danger' : 'info'" size="small">{{ row.role }}</el-tag>
@@ -69,7 +69,7 @@
     <el-dialog v-model="dialogVisible" :title="isEdit ? t('user.editUser') : t('user.newUser')" width="500" destroy-on-close>
       <el-form :model="form" :rules="rules" ref="formRef" label-width="80px">
         <el-form-item :label="$t('user.username')" prop="username"><el-input v-model="form.username" /></el-form-item>
-        <el-form-item :label="$t('user.username')" prop="email"><el-input v-model="form.email" /></el-form-item>
+        <el-form-item :label="$t('user.email')" prop="email"><el-input v-model="form.email" /></el-form-item>
         <el-form-item :label="$t('user.password')" :prop="isEdit ? '' : 'password'"><el-input v-model="form.password" type="password" show-password :placeholder="isEdit ? t('common.required') : t('user.passwordPlaceholder')" /></el-form-item>
         <el-form-item :label="$t('user.role')" prop="role">
           <el-select v-model="form.role"><el-option label="ADMIN" value="ADMIN" /><el-option label="USER" value="USER" /></el-select>
@@ -86,7 +86,7 @@
 
 <script setup lang="ts">
 import { ref, reactive, onMounted } from 'vue'
-import { ElMessage } from 'element-plus'
+import { ElMessage, ElMessageBox } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { User, Plus, Search } from '@element-plus/icons-vue'
 import { getUsers, createUser, updateUser, deleteUser } from '@/api/admin'
@@ -145,6 +145,10 @@ const handleSave = async () => {
     dialogVisible.value = false
     loadData()
   } catch {} finally { saving.value = false }
+}
+
+const confirmDeleteUser = (item: any) => {
+  ElMessageBox.confirm(t('common.deleteConfirm'), t('common.confirm'), { type: 'warning' }).then(() => handleDelete(item.id)).catch(() => {})
 }
 
 const handleDelete = async (id: string) => {
