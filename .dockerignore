@@ -1,0 +1,14 @@
+target/
+.git/
+.idea/
+node_modules/
+*.db
+*.db-shm
+*.db-wal
+*.jar
+*.log
+*.iml
+.env
+NUL
+dev/
+tmp*
