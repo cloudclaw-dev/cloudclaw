@@ -1,0 +1,62 @@
+# CloudClaw - Cluster Mode (PostgreSQL + Redis)
+# Usage: docker compose up -d
+#
+# Prerequisites: Copy .env.example to .env and fill in values
+
+version: '3.8'
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: cloudclaw
+      POSTGRES_USER: cloudclaw
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-cloudclaw123}
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U cloudclaw"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    ports:
+      - "6379:6379"
+    volumes:
+      - redisdata:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  cloudclaw:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    ports:
+      - "${PORT:-8080}:8080"
+    environment:
+      SPRING_PROFILES_ACTIVE: cluster
+      SPRING_DATASOURCE_URL: jdbc:postgresql://db:5432/cloudclaw
+      SPRING_DATASOURCE_USERNAME: cloudclaw
+      SPRING_DATASOURCE_PASSWORD: ${DB_PASSWORD:-cloudclaw123}
+      SPRING_DATA_REDIS_HOST: redis
+      SPRING_DATA_REDIS_PORT: 6379
+      CLOUDCLAW_JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+      CLOUDCLAW_LLM_ENCRYPTION_KEY: ${LLM_ENCRYPTION_KEY:-0123456789abcdef0123456789abcdef}
+    depends_on:
+      db:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  redisdata:
