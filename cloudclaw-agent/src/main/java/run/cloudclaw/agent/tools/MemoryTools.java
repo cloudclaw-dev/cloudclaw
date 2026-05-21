@@ -251,23 +251,21 @@ public class MemoryTools {
 
     /**
      * Resolve userId from context map.
-     * Tries to find any context entry — since most deployments have one user at a time,
-     * falling back to the first available entry is reasonable.
+     * Only returns a userId when it can be unambiguously determined.
+     * Returns null if no context or multiple users exist (cross-user safety).
      */
     private String resolveUserId() {
-        // First try: get all contexts and find one
         if (contextMap.isEmpty()) {
             log.warn("Memory context map is empty — no setContext was called or context was cleared");
             return null;
         }
-        // If only one user, use that
+        // If only one user, use that — safe for single-user deployments
         if (contextMap.size() == 1) {
             return contextMap.keys().nextElement();
         }
-        // Multiple users — can't determine which one without more info
-        // This shouldn't happen in normal usage
-        log.warn("Multiple users in memory context map: {}", contextMap.keySet());
-        return contextMap.keys().nextElement();
+        // Multiple users — refuse to pick one arbitrarily to prevent cross-user data access
+        log.error("Multiple users in memory context map ({}), refusing ambiguous resolve", contextMap.keySet());
+        return null;
     }
 
     // ==================== Context holder ====================
