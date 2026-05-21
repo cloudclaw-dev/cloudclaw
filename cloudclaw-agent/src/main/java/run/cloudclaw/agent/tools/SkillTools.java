@@ -99,9 +99,16 @@ public class SkillTools {
             try {
                 java.nio.file.Files.writeString(tempScript, scriptFile.getContent());
 
+                // Validate arguments — reject obviously dangerous patterns
                 ProcessBuilder pb = new ProcessBuilder(interpreter, tempScript.toAbsolutePath().toString());
                 if (arguments != null && !arguments.isBlank()) {
-                    pb.command().addAll(List.of(arguments.split("\\s+")));
+                    String[] args = arguments.split("\\s+");
+                    for (String arg : args) {
+                        if (arg.contains("..") || arg.startsWith("/") || arg.startsWith("~")) {
+                            return "Error: Invalid argument: '" + arg + "'";
+                        }
+                    }
+                    pb.command().addAll(List.of(args));
                 }
                 pb.redirectErrorStream(true);
 
