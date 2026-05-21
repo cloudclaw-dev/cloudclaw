@@ -1,0 +1,73 @@
+server:
+  port: 8080
+  address: 0.0.0.0
+
+spring:
+  application:
+    name: cloudclaw
+  main:
+    allow-bean-definition-overriding: true
+  profiles:
+    active: standalone
+  datasource:
+    url: jdbc:sqlite:file:cloudclaw.db?busy_timeout=30000&journal_mode=WAL
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1
+  jpa:
+    hibernate:
+      ddl-auto: none
+    open-in-view: false
+    properties:
+      hibernate:
+        dialect: run.cloudclaw.standalone.db.CloudClawSQLiteDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/sqlite
+    out-of-order: true
+  ai:
+    openai:
+      api-key: ${OPENAI_API_KEY:sk-placeholder}
+      chat:
+        options:
+          model: ${AI_MODEL:gpt-4o}
+
+cloudclaw:
+  mode: standalone
+  jwt:
+    secret: ${JWT_SECRET:cloudclaw-default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha}
+    access-token-ttl: 2h
+    refresh-token-ttl: 7d
+  memory:
+    engine: jdbc
+  mq:
+    provider: inmemory
+  mcp:
+    pool:
+      max-connections-per-server: 5
+      idle-timeout: 300s
+  cache:
+    session-ttl: 30m
+    agent-ttl: 1h
+    memory-ttl: 10m
+
+logging:
+  level:
+    run.cloudclaw: INFO
+    run.cloudclaw.agent.engine.ChatEngine: INFO
+    io.modelcontextprotocol: WARN
+    org.springframework.ai: WARN
+    org.hibernate.SQL: WARN
+    org.hibernate.type.descriptor.sql.BasicBinder: WARN
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: always
+  health:
+    redis:
+      enabled: false
