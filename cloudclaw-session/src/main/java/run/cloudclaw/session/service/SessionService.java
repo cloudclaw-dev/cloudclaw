@@ -171,11 +171,8 @@ public class SessionService {
         Message saved = messageRepository.save(message);
         log.debug("Saved message {} for session {}", saved.getId(), saved.getSessionId());
 
-        // Update the session's updatedAt timestamp
-        sessionRepository.findById(saved.getSessionId().toString()).ifPresent(session -> {
-            session.setUpdatedAt(LocalDateTime.now());
-            sessionRepository.save(session);
-        });
+        // Update the session's updatedAt timestamp efficiently
+        sessionRepository.updateTimestamp(saved.getSessionId().toString(), LocalDateTime.now());
 
         // Update the cache with the full context
         refreshContextCache(saved.getSessionId().toString());
