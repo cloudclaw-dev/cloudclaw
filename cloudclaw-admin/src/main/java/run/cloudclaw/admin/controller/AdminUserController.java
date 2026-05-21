@@ -46,6 +46,11 @@ public class AdminUserController {
     public Result<UserDTO> createUser(@Valid @RequestBody CreateUserRequest request) {
         log.info("Admin creating user with username: {}", request.getUsername());
 
+        // Check username uniqueness
+        if (userRepository.existsByUsername(request.getUsername())) {
+            throw new BusinessException(409, "Username already exists: " + request.getUsername());
+        }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -102,6 +107,9 @@ public class AdminUserController {
         }
         if (request.getRole() != null) {
             user.setRole(User.UserRole.valueOf(request.getRole()));
+        }
+        if (request.getPassword() != null && !request.getPassword().isBlank()) {
+            user.setPassword(passwordEncoder.encode(request.getPassword()));
         }
         if (request.getEnabled() != null) {
             user.setEnabled(request.getEnabled());
