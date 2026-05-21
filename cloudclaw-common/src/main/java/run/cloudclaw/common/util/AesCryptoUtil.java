@@ -4,6 +4,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
@@ -21,11 +22,14 @@ public class AesCryptoUtil {
     private final SecretKeySpec keySpec;
 
     public AesCryptoUtil(String secret) {
-        // Derive a 256-bit key from the secret string
-        byte[] keyBytes = new byte[32];
-        byte[] secretBytes = secret.getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(secretBytes, 0, keyBytes, 0, Math.min(secretBytes.length, 32));
-        this.keySpec = new SecretKeySpec(keyBytes, "AES");
+        // Derive a 256-bit key using SHA-256 hash of the secret
+        try {
+            MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+            byte[] keyBytes = sha256.digest(secret.getBytes(StandardCharsets.UTF_8));
+            this.keySpec = new SecretKeySpec(keyBytes, "AES");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to derive encryption key", e);
+        }
     }
 
     /**
