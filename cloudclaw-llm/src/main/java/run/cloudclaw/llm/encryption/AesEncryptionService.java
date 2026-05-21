@@ -21,7 +21,7 @@ public class AesEncryptionService {
 
     private final SecretKeySpec keySpec;
 
-    public AesEncryptionService(@Value("${cloudclaw.llm.encryption-key:default-cloudclaw-key-change-me!}") String key) {
+    public AesEncryptionService(@Value("${cloudclaw.crypto.secret:cloudclaw-default-crypto-secret-key-32b}") String key) {
         byte[] keyBytes = new byte[32];
         byte[] provided = key.getBytes(StandardCharsets.UTF_8);
         System.arraycopy(provided, 0, keyBytes, 0, Math.min(provided.length, 32));
