@@ -101,7 +101,6 @@
               :placeholder="$t('memory.sessionFilter')"
               size="small"
               style="width: 200px; margin-left: auto"
-              @change="loadTasks"
             >
               <el-option
                 v-for="session in sessions"
