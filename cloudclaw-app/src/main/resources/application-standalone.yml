@@ -1,0 +1,44 @@
+# Standalone mode configuration (SQLite + Caffeine + InMemoryMQ)
+# This profile is the default; activated automatically by application.yml
+
+spring:
+  datasource:
+    url: jdbc:sqlite:file:cloudclaw.db?busy_timeout=30000&journal_mode=WAL
+    driver-class-name: org.sqlite.JDBC
+    hikari:
+      maximum-pool-size: 1
+  jpa:
+    hibernate:
+      ddl-auto: none
+    properties:
+      hibernate:
+        dialect: run.cloudclaw.standalone.db.CloudClawSQLiteDialect
+  flyway:
+    enabled: true
+    locations: classpath:db/sqlite
+
+cloudclaw:
+  mode: standalone
+  mq:
+    provider: inmemory
+  sandbox:
+    default-backend: LOCAL
+    default-mode: STATELESS
+    default-timeout: 30s
+    max-timeout: 5m
+    max-concurrent: 10
+    allowed-languages: python,javascript,shell,java
+    docker:
+      enabled: false
+      images:
+        python: python:3.11-slim
+        javascript: node:20-slim
+        shell: alpine:latest
+        java: eclipse-temurin:17-jdk-alpine
+      memory: 512m
+      cpus: 1
+      network-enabled: false
+    e2b:
+      enabled: false
+      api-key: ${E2B_API_KEY:}
+      template-id: ${E2B_TEMPLATE_ID:}
