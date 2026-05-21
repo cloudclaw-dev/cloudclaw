@@ -78,7 +78,7 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, nextTick } from 'vue'
+import { ref, onMounted, onUnmounted, nextTick } from 'vue'
 import { User, ChatDotRound, Coin, Monitor, Odometer } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getUsageStats, getSessionStats } from '@/api/admin'
@@ -87,6 +87,7 @@ import { useI18n } from 'vue-i18n'
 
 const { t } = useI18n()
 const stats = ref<any>({ userCount: 0, sessionCount: 0, tokenUsage: 0, agentCount: 0 })
+const chartInstances: any[] = []
 
 onMounted(async () => {
   try {
@@ -110,10 +111,15 @@ onMounted(async () => {
   }
 })
 
+onUnmounted(() => { chartInstances.forEach(c => c.dispose()) })
+
 function renderUsageChart(data: any) {
   const el = document.getElementById('usage-chart')
   if (!el) { console.warn('usage-chart element not found'); return }
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) { existing.dispose() }
   const chart = echarts.init(el)
+  chartInstances.push(chart)
   const d = data?.daily ?? []
   if (d.length === 0) {
     chart.setOption({ title: { text: t('common.noData'), left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14 } } })
@@ -135,7 +141,10 @@ function renderUsageChart(data: any) {
 function renderSessionChart(data: any) {
   const el = document.getElementById('session-chart')
   if (!el) { console.warn('session-chart element not found'); return }
+  const existing = echarts.getInstanceByDom(el)
+  if (existing) { existing.dispose() }
   const chart = echarts.init(el)
+  chartInstances.push(chart)
   const d = data?.daily ?? []
   if (d.length === 0) {
     chart.setOption({ title: { text: t('common.noData'), left: 'center', top: 'center', textStyle: { color: '#999', fontSize: 14 } } })
