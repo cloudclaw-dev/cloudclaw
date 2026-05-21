@@ -1,0 +1,52 @@
+<assembly xmlns="http://maven.apache.org/ASSEMBLY/2.2.0"
+          xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+          xsi:schemaLocation="http://maven.apache.org/ASSEMBLY/2.2.0 http://maven.apache.org/xsd/assembly-2.2.0.xsd">
+
+    <id>release</id>
+    <formats>
+        <format>zip</format>
+    </formats>
+    <includeBaseDirectory>false</includeBaseDirectory>
+
+    <dependencySets>
+        <dependencySet>
+            <includes>
+                <include>run.cloudclaw:cloudclaw-app</include>
+            </includes>
+            <outputFileNameMapping>${artifact.artifactId}-${artifact.version}.${artifact.extension}</outputFileNameMapping>
+        </dependencySet>
+    </dependencySets>
+
+    <fileSets>
+        <!-- Start/stop scripts -->
+        <fileSet>
+            <directory>${project.basedir}/src/scripts</directory>
+            <outputDirectory>/</outputDirectory>
+            <fileMode>0755</fileMode>
+            <includes>
+                <include>start.sh</include>
+                <include>stop.sh</include>
+            </includes>
+        </fileSet>
+        <fileSet>
+            <directory>${project.basedir}/src/scripts</directory>
+            <outputDirectory>/</outputDirectory>
+            <includes>
+                <include>start.bat</include>
+                <include>README.txt</include>
+            </includes>
+        </fileSet>
+
+        <!-- External config files (from cloudclaw-app resources) -->
+        <fileSet>
+            <directory>${project.basedir}/../cloudclaw-app/src/main/resources</directory>
+            <outputDirectory>/config</outputDirectory>
+            <includes>
+                <include>application.yml</include>
+                <include>application-standalone.yml</include>
+                <include>application-cluster.yml</include>
+                <include>application-prod.yml</include>
+            </includes>
+        </fileSet>
+    </fileSets>
+</assembly>
