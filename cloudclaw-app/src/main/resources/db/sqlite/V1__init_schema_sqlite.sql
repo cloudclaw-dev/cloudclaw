@@ -14,7 +14,7 @@ CREATE TABLE users (
 
 CREATE TABLE api_keys (
     id          TEXT PRIMARY KEY,
-    user_id     TEXT NOT NULL REFERENCES users(id),
+    user_id     TEXT NOT NULL REFERENCES users(id) ON DELETE CASCADE,
     name        VARCHAR(100),
     key_hash    VARCHAR(255) NOT NULL,
     expires_at  TIMESTAMP,
@@ -42,7 +42,7 @@ CREATE TABLE agents (
     sandbox_mode              VARCHAR(20) DEFAULT 'STATELESS',
     sandbox_timeout           INTEGER DEFAULT 30,
     sandbox_provider_id       TEXT,
-    created_by                TEXT REFERENCES users(id),
+    created_by                TEXT REFERENCES users(id) ON DELETE CASCADE,
     enabled                   BOOLEAN DEFAULT TRUE,
     created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP
