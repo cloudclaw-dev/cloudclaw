@@ -79,7 +79,7 @@
               <div class="mobile-card-meta">
                 <span>{{ getProviderName(item.providerId) }}</span>
                 <span style="margin-left: 12px">{{ item.modelType }}</span>
-                <span v-if="item.contextWindow" style="margin-left: 12px">{{ $t('llm.providers') }}: {{ item.contextWindow }}</span>
+                <span v-if="item.contextWindow" style="margin-left: 12px">{{ $t('llm.contextWindow') }}: {{ item.contextWindow }}</span>
               </div>
               <div class="mobile-card-desc">{{ item.modelName }}</div>
               <div class="mobile-card-actions">
@@ -97,7 +97,7 @@
             <template #default="{ row }">{{ getProviderName(row.providerId) }}</template>
           </el-table-column>
           <el-table-column prop="modelType" :label="$t('common.type')" width="80" />
-          <el-table-column prop="contextWindow" :label="$t('llm.providers')" width="100" />
+          <el-table-column prop="contextWindow" :label="$t('llm.contextWindow')" width="100" />
           <el-table-column prop="enabled" :label="$t('common.status')" width="80">
             <template #default="{ row }">
               <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? t('common.enable') : t('common.disable') }}</el-tag>
@@ -134,8 +134,8 @@
                 </div>
               </div>
               <div class="mobile-card-meta">
-                <span>{{ $t('llm.unitPrice') }}: {{ item.priority }}</span>
-                <span style="margin-left: 12px">{{ $t('llm.unitPrice') }}: {{ item.weight }}</span>
+                <span>{{ $t('llm.priority') }}: {{ item.priority }}</span>
+                <span style="margin-left: 12px">{{ $t('llm.weight') }}: {{ item.weight }}</span>
               </div>
               <div class="mobile-card-desc">{{ item.apiKeyEncrypted }}</div>
               <div class="mobile-card-actions">
@@ -152,8 +152,8 @@
             <template #default="{ row }">{{ getProviderName(row.providerId) }}</template>
           </el-table-column>
           <el-table-column prop="apiKeyEncrypted" :label="$t('llm.apiKey')" min-width="200" />
-          <el-table-column prop="priority" :label="$t('llm.unitPrice')" width="80" />
-          <el-table-column prop="weight" :label="$t('llm.unitPrice')" width="80" />
+          <el-table-column prop="priority" :label="$t('llm.priority')" width="80" />
+          <el-table-column prop="weight" :label="$t('llm.weight')" width="80" />
           <el-table-column prop="enabled" :label="$t('common.status')" width="80">
             <template #default="{ row }">
               <el-tag :type="row.enabled ? 'success' : 'info'">{{ row.enabled ? t('common.enable') : t('common.disable') }}</el-tag>
@@ -173,23 +173,23 @@
       <!-- 用量统计 -->
       <el-tab-pane :label="$t('llm.usage')" name="usage">
         <div style="margin-bottom: 16px; display: flex; align-items: center; gap: 12px; flex-wrap: wrap">
-          <el-date-picker v-model="usageDateRange" type="daterange" range-separator="{{ $t('monitor.query') }}" start-:placeholder="$t('monitor.startTime')" end-:placeholder="$t('monitor.endTime')" value-format="YYYY-MM-DD" @change="loadUsage" />
+          <el-date-picker v-model="usageDateRange" type="daterange" range-separator="-" start-placeholder="$t('monitor.startTime')" end-placeholder="$t('monitor.endTime')" value-format="YYYY-MM-DD" @change="loadUsage" />
           <el-button type="primary" @click="loadUsage">{{ $t('common.refresh') }}</el-button>
         </div>
 
         <!-- 概览卡片 -->
         <el-row :gutter="16" style="margin-bottom: 20px">
           <el-col :span="6" :xs="12" :sm="12">
-            <el-card shadow="hover"><el-statistic :title="$t('llm.usageCount')" :value="usageSummary.totalRequests || 0" /></el-card>
+            <el-card shadow="hover"><el-statistic :title="$t('llm.requestCount')" :value="usageSummary.totalRequests || 0" /></el-card>
           </el-col>
           <el-col :span="6" :xs="12" :sm="12">
-            <el-card shadow="hover"><el-statistic :title="$t('llm.tokenStats')" :value="usageSummary.totalTokensIn || 0" /></el-card>
+            <el-card shadow="hover"><el-statistic :title="$t('llm.tokensIn')" :value="usageSummary.totalTokensIn || 0" /></el-card>
           </el-col>
           <el-col :span="6" :xs="12" :sm="12">
-            <el-card shadow="hover"><el-statistic :title="$t('llm.tokenStats')" :value="usageSummary.totalTokensOut || 0" /></el-card>
+            <el-card shadow="hover"><el-statistic :title="$t('llm.tokensOut')" :value="usageSummary.totalTokensOut || 0" /></el-card>
           </el-col>
           <el-col :span="6" :xs="12" :sm="12">
-            <el-card shadow="hover"><el-statistic :title="$t('llm.usageCount')" :value="usageSummary.totalCost || 0" :precision="4" /></el-card>
+            <el-card shadow="hover"><el-statistic :title="$t('llm.cost')" :value="usageSummary.totalCost || 0" :precision="4" /></el-card>
           </el-col>
         </el-row>
 
@@ -201,10 +201,10 @@
               <el-table-column :label="$t('llm.modelName')" width="160">
                 <template #default="{ row }">{{ getModelName(row.modelId) }}</template>
               </el-table-column>
-              <el-table-column prop="requestCount" :label="$t('llm.usageCount')" width="100" />
-              <el-table-column prop="tokensIn" :label="$t('llm.tokenStats')" width="140" />
-              <el-table-column prop="tokensOut" :label="$t('llm.tokenStats')" width="140" />
-              <el-table-column prop="cost" :label="$t('llm.usageCount')" width="120" />
+              <el-table-column prop="requestCount" :label="$t('llm.requestCount')" width="100" />
+              <el-table-column prop="tokensIn" :label="$t('llm.tokensIn')" width="140" />
+              <el-table-column prop="tokensOut" :label="$t('llm.tokensOut')" width="140" />
+              <el-table-column prop="cost" :label="$t('llm.cost')" width="120" />
             </el-table>
           </el-tab-pane>
 
@@ -212,10 +212,10 @@
           <el-tab-pane :label="$t('nav.user')" name="byUser">
             <el-table :data="usageByUser" stripe border v-loading="usageLoading">
               <el-table-column prop="userId" :label="$t('nav.user')" width="320" />
-              <el-table-column prop="requestCount" :label="$t('llm.usageCount')" width="100" />
-              <el-table-column prop="tokensIn" :label="$t('llm.tokenStats')" width="140" />
-              <el-table-column prop="tokensOut" :label="$t('llm.tokenStats')" width="140" />
-              <el-table-column prop="cost" :label="$t('llm.usageCount')" width="120" />
+              <el-table-column prop="requestCount" :label="$t('llm.requestCount')" width="100" />
+              <el-table-column prop="tokensIn" :label="$t('llm.tokensIn')" width="140" />
+              <el-table-column prop="tokensOut" :label="$t('llm.tokensOut')" width="140" />
+              <el-table-column prop="cost" :label="$t('llm.cost')" width="120" />
             </el-table>
           </el-tab-pane>
 
@@ -223,10 +223,10 @@
           <el-tab-pane :label="$t('monitor.startTime')" name="daily">
             <el-table :data="usageDaily" stripe border v-loading="usageLoading">
               <el-table-column prop="date" :label="$t('monitor.startTime')" width="140" />
-              <el-table-column prop="requestCount" :label="$t('llm.usageCount')" width="100" />
-              <el-table-column prop="tokensIn" :label="$t('llm.tokenStats')" width="140" />
-              <el-table-column prop="tokensOut" :label="$t('llm.tokenStats')" width="140" />
-              <el-table-column prop="cost" :label="$t('llm.usageCount')" width="120" />
+              <el-table-column prop="requestCount" :label="$t('llm.requestCount')" width="100" />
+              <el-table-column prop="tokensIn" :label="$t('llm.tokensIn')" width="140" />
+              <el-table-column prop="tokensOut" :label="$t('llm.tokensOut')" width="140" />
+              <el-table-column prop="cost" :label="$t('llm.cost')" width="120" />
             </el-table>
           </el-tab-pane>
         </el-tabs>
@@ -270,11 +270,11 @@
             <el-option label="Embedding" value="embedding" />
           </el-select>
         </el-form-item>
-        <el-form-item :label="$t('llm.providers')"><el-input-number v-model="modelForm.contextWindow" :min="0" /></el-form-item>
-        <el-form-item :label="$t('llm.providers')"><el-input-number v-model="modelForm.maxOutput" :min="0" /></el-form-item>
-        <el-form-item :label="$t('llm.unitPrice')"><el-input-number v-model="modelForm.inputPrice" :precision="6" :step="0.0001" /></el-form-item>
-        <el-form-item :label="$t('llm.unitPrice')"><el-input-number v-model="modelForm.outputPrice" :precision="6" :step="0.0001" /></el-form-item>
-        <el-form-item :label="$t('agent.sandboxConfig')"><el-input v-model="modelForm.defaultParams" type="textarea" :rows="2" placeholder='{"temperature":0.7}' /></el-form-item>
+        <el-form-item :label="$t('llm.contextWindow')"><el-input-number v-model="modelForm.contextWindow" :min="0" /></el-form-item>
+        <el-form-item :label="$t('llm.maxOutput')"><el-input-number v-model="modelForm.maxOutput" :min="0" /></el-form-item>
+        <el-form-item :label="$t('llm.inputPrice')"><el-input-number v-model="modelForm.inputPrice" :precision="6" :step="0.0001" /></el-form-item>
+        <el-form-item :label="$t('llm.outputPrice')"><el-input-number v-model="modelForm.outputPrice" :precision="6" :step="0.0001" /></el-form-item>
+        <el-form-item :label="$t('llm.defaultParams')"><el-input v-model="modelForm.defaultParams" type="textarea" :rows="2" placeholder='{"temperature":0.7}' /></el-form-item>
         <el-form-item :label="$t('common.enable')"><el-switch v-model="modelForm.enabled" /></el-form-item>
       </el-form>
       <template #footer>
@@ -296,8 +296,8 @@
         </el-form-item>
         <el-form-item :label="$t('common.name')" required><el-input v-model="credForm.name" :placeholder="$t('llm.credentialNamePlaceholder')" /></el-form-item>
         <el-form-item :label="$t('llm.apiKey')" required><el-input v-model="credForm.apiKey" type="password" show-password :placeholder="isCredEdit ? t('common.required') : t('llm.apiKeyPlaceholder')" /></el-form-item>
-        <el-form-item :label="$t('llm.unitPrice')"><el-input-number v-model="credForm.priority" :min="1" /></el-form-item>
-        <el-form-item :label="$t('llm.unitPrice')"><el-input-number v-model="credForm.weight" :min="1" /></el-form-item>
+        <el-form-item :label="$t('llm.priority')"><el-input-number v-model="credForm.priority" :min="1" /></el-form-item>
+        <el-form-item :label="$t('llm.weight')"><el-input-number v-model="credForm.weight" :min="1" /></el-form-item>
         <el-form-item :label="$t('common.enable')"><el-switch v-model="credForm.enabled" /></el-form-item>
       </el-form>
       <template #footer>
