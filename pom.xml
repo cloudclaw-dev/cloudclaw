@@ -33,6 +33,7 @@
         <module>cloudclaw-standalone</module>
         <module>cloudclaw-sandbox</module>
         <module>cloudclaw-app</module>
+        <module>cloudclaw-release</module>
     </modules>
 
     <properties>
