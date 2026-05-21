@@ -1,0 +1,273 @@
+/* ===== Admin Page Unified Styles ===== */
+/* Uses CSS variables from ChatLayout.vue */
+
+.admin-page {
+  padding: 24px;
+  height: 100%;
+  overflow-y: auto;
+  background: var(--cc-bg-secondary, #f7f8fa);
+}
+.admin-page::-webkit-scrollbar { width: 6px; }
+.admin-page::-webkit-scrollbar-thumb { background: var(--cc-border, #e8eaed); border-radius: 3px; }
+
+.admin-page-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 20px;
+  padding: 16px 20px;
+  background: var(--cc-bg-primary, #fff);
+  border-radius: 10px;
+  border: 1px solid var(--cc-border, #e8eaed);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.admin-page-header .header-info {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+}
+.admin-page-header .header-icon {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--cc-accent, #3370ff), #5b8def);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 20px;
+  flex-shrink: 0;
+}
+.admin-page-header h2 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 600;
+  color: var(--cc-text-primary, #1f2329);
+}
+.admin-page-header .header-desc {
+  font-size: 13px;
+  color: var(--cc-text-muted, #8f959e);
+  margin-top: 2px;
+}
+.admin-page-header .header-actions {
+  display: flex;
+  gap: 8px;
+}
+
+/* Cards */
+.admin-card {
+  background: var(--cc-bg-primary, #fff);
+  border-radius: 10px;
+  padding: 20px;
+  margin-bottom: 16px;
+  border: 1px solid var(--cc-border, #e8eaed);
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+
+/* Override el-card to match */
+.admin-card :deep(.el-card) {
+  border-radius: 10px;
+  border: 1px solid var(--cc-border, #e8eaed);
+}
+
+/* Table toolbar */
+.admin-table-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+/* Stats cards */
+.admin-stats-row {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+.admin-stat-card {
+  background: var(--cc-bg-primary, #fff);
+  border-radius: 10px;
+  padding: 16px 20px;
+  border: 1px solid var(--cc-border, #e8eaed);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.admin-stat-card .stat-icon {
+  width: 44px; height: 44px;
+  border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 22px; color: #fff; flex-shrink: 0;
+}
+.stat-icon.blue { background: linear-gradient(135deg, #3370ff, #5b8def); }
+.stat-icon.green { background: linear-gradient(135deg, #34c759, #5ad87d); }
+.stat-icon.orange { background: linear-gradient(135deg, #ff9500, #ffb340); }
+.stat-icon.red { background: linear-gradient(135deg, #ff3b30, #ff6259); }
+.stat-icon.purple { background: linear-gradient(135deg, #af52de, #c77deb); }
+.admin-stat-card .stat-value {
+  font-size: 24px; font-weight: 700;
+  color: var(--cc-text-primary, #1f2329); line-height: 1;
+}
+.admin-stat-card .stat-label {
+  font-size: 13px; color: var(--cc-text-muted, #8f959e); margin-top: 4px;
+}
+
+/* ===== Mobile Responsive ===== */
+@media (max-width: 767px) {
+  .admin-page {
+    padding: 12px;
+  }
+  .admin-page-header {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 12px 16px;
+  }
+  .admin-page-header .header-actions {
+    width: 100%;
+  }
+  .admin-page-header .header-actions .el-button {
+    flex: 1;
+  }
+  .admin-card {
+    padding: 12px;
+  }
+  .admin-page :deep(.el-table) {
+    font-size: 12px;
+  }
+  .admin-page :deep(.el-table__body-wrapper) {
+    overflow-x: auto;
+  }
+  .admin-page :deep(.el-dialog) {
+    width: 92% !important;
+    margin: 4vh auto !important;
+  }
+  .admin-page :deep(.el-dialog__body) {
+    max-height: 60vh;
+    overflow-y: auto;
+  }
+  .admin-stats-row {
+    grid-template-columns: 1fr 1fr;
+  }
+  .admin-table-toolbar {
+    flex-direction: column;
+    gap: 8px;
+    align-items: stretch;
+  }
+}
+
+/* System Monitor mobile tabs */
+@media (max-width: 767px) {
+  .system-monitor-mobile {
+    display: flex;
+    gap: 0;
+  }
+  .admin-card.mobile-hide {
+    display: none !important;
+  }
+  .mobile-section-tabs {
+    display: flex !important;
+    gap: 0;
+    margin-bottom: 12px;
+    background: var(--cc-bg-primary);
+    border-radius: 8px;
+    overflow: hidden;
+    border: 1px solid var(--cc-border);
+  }
+  .mobile-section-tab {
+    flex: 1;
+    padding: 10px 8px;
+    text-align: center;
+    font-size: 13px;
+    cursor: pointer;
+    color: var(--cc-text-secondary);
+    transition: all 0.15s;
+  }
+  .mobile-section-tab.active {
+    background: var(--cc-accent);
+    color: #fff;
+  }
+}
+@media (min-width: 768px) {
+  .mobile-section-tabs {
+    display: none !important;
+  }
+}
+
+/* ===== Mobile Card List ===== */
+.mobile-card-list {
+  display: none;
+}
+.el-table.mobile-hide {
+  display: none;
+}
+@media (max-width: 767px) {
+  .mobile-card-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+  .mobile-card-list .el-card {
+    border-radius: 10px;
+  }
+  .mobile-card-list .el-card :deep(.el-card__body) {
+    padding: 14px 16px;
+  }
+  .mobile-card-item {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+  .mobile-card-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+  }
+  .mobile-card-tags {
+    display: flex;
+    gap: 6px;
+    align-items: center;
+  }
+  .mobile-card-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: var(--cc-text-primary);
+  }
+  .mobile-card-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 16px;
+    font-size: 13px;
+    color: var(--cc-text-secondary);
+  }
+  .mobile-card-meta-item {
+    display: flex;
+    align-items: center;
+    gap: 4px;
+  }
+  .mobile-card-desc {
+    font-size: 12px;
+    color: var(--cc-text-muted);
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .mobile-card-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 4px;
+    padding-top: 8px;
+    border-top: 1px solid var(--cc-border);
+  }
+}
+
+/* ===== System Monitor Tabs ===== */
+.system-monitor-tabs .el-tabs__content {
+  padding: 0;
+}
+.system-monitor-tabs .el-tabs__header {
+  margin-bottom: 16px;
+}
