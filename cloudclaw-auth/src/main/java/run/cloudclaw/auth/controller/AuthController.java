@@ -5,6 +5,7 @@ import run.cloudclaw.common.dto.LoginRequest;
 import run.cloudclaw.common.dto.LoginResponse;
 import run.cloudclaw.common.dto.RefreshRequest;
 import run.cloudclaw.common.dto.Result;
+import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -33,7 +34,7 @@ public class AuthController {
      * @return {@link Result} containing {@link LoginResponse} with access and refresh tokens
      */
     @PostMapping("/login")
-    public Result<LoginResponse> login(@RequestBody LoginRequest request) {
+    public Result<LoginResponse> login(@Valid @RequestBody LoginRequest request) {
         log.info("Login request received for username: {}", request.getUsername());
         LoginResponse response = authService.login(request);
         return Result.ok(response);
@@ -46,7 +47,7 @@ public class AuthController {
      * @return {@link Result} containing {@link LoginResponse} with a new access token
      */
     @PostMapping("/refresh")
-    public Result<LoginResponse> refresh(@RequestBody RefreshRequest request) {
+    public Result<LoginResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         log.info("Token refresh request received");
         LoginResponse response = authService.refreshToken(request);
         return Result.ok(response);
