@@ -72,9 +72,9 @@
         </el-radio-group>
       </div>
       <el-table :data="sessions" v-loading="sessionLoading" stripe>
-        <el-table-column label="ID" width="100">{{ (row: any) => shortId(row.id) }}</el-table-column>
-        <el-table-column :label="$t('dashboard.sessionTitle')" width="100">{{ (row: any) => shortId(row.sessionId) }}</el-table-column>
-        <el-table-column label="Agent" width="100">{{ (row: any) => shortId(row.agentId) }}</el-table-column>
+        <el-table-column label="ID" width="100"><template #default="{ row }">{{ shortId(row.id) }}</template></el-table-column>
+        <el-table-column :label="$t('dashboard.sessionTitle')" width="100"><template #default="{ row }">{{ shortId(row.sessionId) }}</template></el-table-column>
+        <el-table-column label="Agent" width="100"><template #default="{ row }">{{ shortId(row.agentId) }}</template></el-table-column>
         <el-table-column prop="backend" :label="$t('sandbox.backend')" width="80" />
         <el-table-column prop="status" :label="$t('common.status')" width="100">
           <template #default="{ row }">
@@ -82,7 +82,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="workDir" :label="$t('sandbox.workDir')" show-overflow-tooltip />
-        <el-table-column :label="$t('memory.createdAt')" width="170">{{ (row: any) => formatTime(row.createdAt) }}</el-table-column>
+        <el-table-column :label="$t('memory.createdAt')" width="170"><template #default="{ row }">{{ formatTime(row.createdAt) }}</template></el-table-column>
         <el-table-column :label="$t('common.actions')" fixed="right" width="100">
           <template #default="{ row }">
             <el-button v-if="row.status === 'ACTIVE'" link type="danger" @click="forceClose(row)">{{ $t('sandbox.forceClose') }}</el-button>
@@ -97,7 +97,7 @@
         <el-form-item :label="$t('common.name')"><el-input v-model="providerForm.name" /></el-form-item>
         <el-form-item :label="$t('common.type')">
           <el-select v-model="providerForm.type" style="width:100%">
-            <el-option value="LOCAL" label="{{ $t('sandbox.local') }}" />
+            <el-option value="LOCAL" :label="$t('sandbox.local')" />
             <el-option value="DOCKER" :label="$t('sandbox.docker')" />
             <el-option value="E2B" :label="$t('sandbox.e2b')" />
           </el-select>
