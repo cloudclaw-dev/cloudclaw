@@ -91,7 +91,7 @@
           <div v-if="filteredModels.length === 0" style="text-align:center;padding:40px;color:var(--cc-text-muted)">{{ $t('common.noData') }}</div>
         </div>
         <el-table :data="filteredModels" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
-          <el-table-column prop="modelName" :label="$t('llm.modelName')" width="160" />
+          <el-table-column prop="modelName" :label="$t('llm.modelName')" min-width="160" />
           <el-table-column prop="displayName" :label="$t('llm.displayName')" width="160" />
           <el-table-column prop="providerId" label="Provider" width="140">
             <template #default="{ row }">{{ getProviderName(row.providerId) }}</template>

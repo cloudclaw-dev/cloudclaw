@@ -10,6 +10,7 @@ import run.cloudclaw.llm.service.LlmUsageService;
 import run.cloudclaw.common.model.Session;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.core.env.Environment;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
@@ -34,6 +35,17 @@ public class AdminStatsController {
     private final AdminMessageRepository messageRepository;
     private final AdminAgentRepository agentRepository;
     private final LlmUsageService llmUsageService;
+    private final Environment environment;
+
+    @GetMapping("/info")
+    public Result<?> getSystemInfo() {
+        String[] profiles = environment.getActiveProfiles();
+        String mode = (profiles.length > 0) ? profiles[0] : "standalone";
+        return Result.ok(java.util.Map.of(
+            "version", "1.0.1",
+            "mode", mode
+        ));
+    }
 
     private static final DateTimeFormatter DATE_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd");
 

@@ -51,4 +51,14 @@ public class UpdateAgentRequest {
     private List<String> skillIds;
 
     private Boolean enabled;
+
+    // Sub-agents JSON (Agent Transfer v2)
+    private String subAgents;
+
+    // Workflow v3
+    /** Workflow mode: pipeline | parallel | router | supervisor | handoff */
+    private String workflowMode;
+
+    /** Workflow definition JSON */
+    private String workflow;
 }

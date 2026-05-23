@@ -63,7 +63,7 @@
     <el-row :gutter="16" style="margin-top: 16px" class="admin-page-content">
       <el-col :span="12" :xs="24">
         <el-card shadow="hover" class="admin-card">
-          <template #header><span>{{ $t('dashboard.recentSessions') }}</span></template>
+          <template #header><span>{{ $t('llm.tokenStats') }}</span></template>
           <div id="usage-chart" style="width: 100%; height: 320px"></div>
         </el-card>
       </el-col>

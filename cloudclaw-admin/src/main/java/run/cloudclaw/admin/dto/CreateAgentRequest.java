@@ -47,4 +47,14 @@ public class CreateAgentRequest {
     private List<String> mcpServerIds;
 
     private List<String> skillIds;
+
+    // Sub-agents JSON (Agent Transfer v2)
+    private String subAgents;
+
+    // Workflow v3
+    /** Workflow mode: pipeline | parallel | router | supervisor | handoff */
+    private String workflowMode;
+
+    /** Workflow definition JSON */
+    private String workflow;
 }

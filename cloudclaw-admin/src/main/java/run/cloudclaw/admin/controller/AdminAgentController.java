@@ -46,12 +46,6 @@ public class AdminAgentController {
     private final AgentConfigService agentConfigService;
     private final ConfigChangeNotifier configChangeNotifier;
 
-    /**
-     * Create a new agent with optional MCP server and skill bindings.
-     *
-     * @param request the agent creation request
-     * @return the created agent
-     */
     @PostMapping
     @Transactional
     public Result<Agent> createAgent(@Valid @RequestBody CreateAgentRequest request) {
@@ -76,6 +70,19 @@ public class AdminAgentController {
         validateSandboxMode(request.getSandboxBackend(), request.getSandboxMode(), request.getSandboxProviderId());
         agent.setEnabled(true);
         agent.setCreatedBy(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+
+        // Sub-agents JSON (Agent Transfer v2)
+        if (request.getSubAgents() != null) {
+            agent.setSubAgents(request.getSubAgents());
+        }
+
+        // Workflow v3
+        if (request.getWorkflowMode() != null) {
+            agent.setWorkflowMode(request.getWorkflowMode());
+        }
+        if (request.getWorkflow() != null) {
+            agent.setWorkflow(request.getWorkflow());
+        }
 
         Agent saved = agentRepository.save(agent);
 
@@ -104,11 +111,6 @@ public class AdminAgentController {
         return Result.ok(saved);
     }
 
-    /**
-     * List all agents.
-     *
-     * @return list of all agents
-     */
     @GetMapping
     public Result<List<Agent>> listAgents() {
         log.debug("Admin listing all agents");
@@ -117,12 +119,6 @@ public class AdminAgentController {
         return Result.ok(agents);
     }
 
-    /**
-     * Get agent detail by ID.
-     *
-     * @param id the agent ID
-     * @return the agent
-     */
     @GetMapping("/{id}")
     public Result<Agent> getAgent(@PathVariable String id) {
         log.debug("Admin getting agent with id: {}", id);
@@ -135,13 +131,6 @@ public class AdminAgentController {
         return Result.ok(agent);
     }
 
-    /**
-     * Update an existing agent.
-     *
-     * @param id      the agent ID
-     * @param request the update request
-     * @return the updated agent
-     */
     @PutMapping("/{id}")
     @Transactional
     public Result<Agent> updateAgent(@PathVariable String id,
@@ -152,42 +141,18 @@ public class AdminAgentController {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new BusinessException(404, "Agent not found: " + id));
 
-        if (request.getName() != null) {
-            agent.setName(request.getName());
-        }
-        if (request.getDescription() != null) {
-            agent.setDescription(request.getDescription());
-        }
-        if (request.getSystemPrompt() != null) {
-            agent.setSystemPrompt(request.getSystemPrompt());
-        }
-        if (request.getModelId() != null) {
-            agent.setModelId(request.getModelId());
-        }
-        if (request.getTemperature() != null) {
-            agent.setTemperature(request.getTemperature());
-        }
-        if (request.getMaxTokens() != null) {
-            agent.setMaxTokens(request.getMaxTokens());
-        }
-        if (request.getMaxToolCalls() != null) {
-            agent.setMaxToolCalls(request.getMaxToolCalls());
-        }
-        if (request.getCompressionThreshold() != null) {
-            agent.setCompressionThreshold(request.getCompressionThreshold());
-        }
-        if (request.getCompressionKeepRounds() != null) {
-            agent.setCompressionKeepRounds(request.getCompressionKeepRounds());
-        }
-        if (request.getContextUsageThreshold() != null) {
-            agent.setContextUsageThreshold(request.getContextUsageThreshold());
-        }
-        if (request.getSandboxEnabled() != null) {
-            agent.setSandboxEnabled(request.getSandboxEnabled());
-        }
-        if (request.getSandboxBackend() != null) {
-            agent.setSandboxBackend(request.getSandboxBackend());
-        }
+        if (request.getName() != null) agent.setName(request.getName());
+        if (request.getDescription() != null) agent.setDescription(request.getDescription());
+        if (request.getSystemPrompt() != null) agent.setSystemPrompt(request.getSystemPrompt());
+        if (request.getModelId() != null) agent.setModelId(request.getModelId());
+        if (request.getTemperature() != null) agent.setTemperature(request.getTemperature());
+        if (request.getMaxTokens() != null) agent.setMaxTokens(request.getMaxTokens());
+        if (request.getMaxToolCalls() != null) agent.setMaxToolCalls(request.getMaxToolCalls());
+        if (request.getCompressionThreshold() != null) agent.setCompressionThreshold(request.getCompressionThreshold());
+        if (request.getCompressionKeepRounds() != null) agent.setCompressionKeepRounds(request.getCompressionKeepRounds());
+        if (request.getContextUsageThreshold() != null) agent.setContextUsageThreshold(request.getContextUsageThreshold());
+        if (request.getSandboxEnabled() != null) agent.setSandboxEnabled(request.getSandboxEnabled());
+        if (request.getSandboxBackend() != null) agent.setSandboxBackend(request.getSandboxBackend());
         if (request.getSandboxMode() != null) {
             validateSandboxMode(
                 request.getSandboxBackend() != null ? request.getSandboxBackend() : agent.getSandboxBackend(),
@@ -196,25 +161,31 @@ public class AdminAgentController {
             );
             agent.setSandboxMode(request.getSandboxMode());
         }
-        if (request.getSandboxTimeout() != null) {
-            agent.setSandboxTimeout(request.getSandboxTimeout());
+        if (request.getSandboxTimeout() != null) agent.setSandboxTimeout(request.getSandboxTimeout());
+        if (request.getSandboxProviderId() != null) agent.setSandboxProviderId(request.getSandboxProviderId());
+        if (request.getEnabled() != null) agent.setEnabled(request.getEnabled());
+
+        // Sub-agents JSON (Agent Transfer v2)
+        if (request.getSubAgents() != null) {
+            agent.setSubAgents(request.getSubAgents());
         }
-        if (request.getSandboxProviderId() != null) {
-            agent.setSandboxProviderId(request.getSandboxProviderId());
+
+        // Workflow v3
+        if (request.getWorkflowMode() != null) {
+            agent.setWorkflowMode(request.getWorkflowMode());
         }
-        if (request.getEnabled() != null) {
-            agent.setEnabled(request.getEnabled());
+        // Allow clearing workflow by sending empty string
+        if (request.getWorkflow() != null) {
+            agent.setWorkflow(request.getWorkflow().isBlank() ? null : request.getWorkflow());
         }
 
         Agent saved = agentRepository.save(agent);
 
         // Update MCP server bindings if provided
         if (request.getMcpServerIds() != null) {
-            // Remove existing bindings
             List<AgentMcpServer> existingBindings = agentMcpServerRepository.findByAgentId(agentId);
             agentMcpServerRepository.deleteAll(existingBindings);
 
-            // Add new bindings
             for (String serverId : request.getMcpServerIds()) {
                 AgentMcpServer binding = new AgentMcpServer();
                 binding.setAgentId(agentId);
@@ -225,11 +196,9 @@ public class AdminAgentController {
 
         // Update skill bindings if provided
         if (request.getSkillIds() != null) {
-            // Remove existing bindings
             List<AgentSkill> existingBindings = agentSkillRepository.findByAgentId(agentId);
             agentSkillRepository.deleteAll(existingBindings);
 
-            // Add new bindings
             for (String skillId : request.getSkillIds()) {
                 AgentSkill binding = new AgentSkill();
                 binding.setAgentId(agentId);
@@ -244,22 +213,6 @@ public class AdminAgentController {
         return Result.ok(saved);
     }
 
-    /**
-     * Delete an agent by ID.
-     *
-     * @param id the agent ID
-     * @return empty result on success
-     */
-    private void populateBindings(Agent agent) {
-        List<String> mcpIds = agentMcpServerRepository.findByAgentId(agent.getId())
-                .stream().map(b -> b.getServerId().toString()).toList();
-        agent.setMcpServerIds(mcpIds);
-
-        List<String> skillIds = agentSkillRepository.findByAgentId(agent.getId())
-                .stream().map(b -> b.getSkillId().toString()).toList();
-        agent.setSkillIds(skillIds);
-    }
-
     @DeleteMapping("/{id}")
     @Transactional
     public Result<Void> deleteAgent(@PathVariable String id) {
@@ -270,20 +223,14 @@ public class AdminAgentController {
             throw new BusinessException(404, "Agent not found: " + id);
         }
 
-        // Remove associated MCP server bindings
         List<AgentMcpServer> mcpBindings = agentMcpServerRepository.findByAgentId(agentId);
         agentMcpServerRepository.deleteAll(mcpBindings);
 
-        // Remove associated skill bindings
         List<AgentSkill> skillBindings = agentSkillRepository.findByAgentId(agentId);
         agentSkillRepository.deleteAll(skillBindings);
 
-        // Remove associated sessions (and their messages via CASCADE)
         adminSessionRepository.deleteByAgentId(id);
 
-        // Remove associated fragments (cleared via profile/session, no-op)
-
-        // Remove the agent itself
         agentRepository.deleteById(agentId);
         agentConfigService.evictCache(id);
         configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.DELETE, "agent", id);
@@ -292,17 +239,21 @@ public class AdminAgentController {
         return Result.ok();
     }
 
-    /**
-     * Validate sandbox mode compatibility with backend.
-     * LOCAL and DOCKER backends only support STATELESS mode.
-     * Only E2B supports SESSION mode.
-     */
+    private void populateBindings(Agent agent) {
+        List<String> mcpIds = agentMcpServerRepository.findByAgentId(agent.getId())
+                .stream().map(b -> b.getServerId().toString()).toList();
+        agent.setMcpServerIds(mcpIds);
+
+        List<String> skillIds = agentSkillRepository.findByAgentId(agent.getId())
+                .stream().map(b -> b.getSkillId().toString()).toList();
+        agent.setSkillIds(skillIds);
+    }
+
     private void validateSandboxMode(String backend, String mode, String providerId) {
         if (mode == null || !"SESSION".equals(mode)) return;
-        
+
         String effectiveBackend = backend;
-        
-        // If provider specified, resolve backend from provider
+
         if (providerId != null && (backend == null || backend.isBlank())) {
             try {
                 SandboxProvider provider = sandboxProviderRepository.findById(java.util.UUID.fromString(providerId)).orElse(null);
@@ -311,9 +262,9 @@ public class AdminAgentController {
                 }
             } catch (Exception ignored) {}
         }
-        
+
         if (effectiveBackend == null) effectiveBackend = "LOCAL";
-        
+
         if ("LOCAL".equals(effectiveBackend) || "DOCKER".equals(effectiveBackend)) {
             throw new BusinessException(400, "SESSION mode is only supported with E2B backend. " + effectiveBackend + " only supports STATELESS mode.");
         }

@@ -102,6 +102,18 @@ public class Agent {
     @Column(name = "sandbox_timeout")
     private Integer sandboxTimeout;
 
+    /** Sub-agents JSON (Agent Transfer v2) */
+    @Column(name = "sub_agents", columnDefinition = "text")
+    private String subAgents;
+
+    /** Workflow mode: pipeline | parallel | router | supervisor | handoff */
+    @Column(name = "workflow_mode", length = 20)
+    private String workflowMode;
+
+    /** Workflow definition JSON */
+    @Column(name = "workflow", columnDefinition = "text")
+    private String workflow;
+
     @Column(name = "created_by", nullable = false, columnDefinition = "uuid")
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.VARCHAR)
     private UUID createdBy;

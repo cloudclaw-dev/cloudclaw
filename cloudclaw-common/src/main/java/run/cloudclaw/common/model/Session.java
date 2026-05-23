@@ -35,6 +35,16 @@ public class Session {
     @Column(length = 500)
     private String title;
 
+    @Column(length = 20)
+    private String status = "ACTIVE";
+
+    @Column(name = "active_agent_path", columnDefinition = "text")
+    private String activeAgentPath = "root";
+
+    /** Runtime workflow state JSON (for Pipeline/Parallel/Supervisor modes) */
+    @Column(name = "workflow_state", columnDefinition = "text")
+    private String workflowState;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

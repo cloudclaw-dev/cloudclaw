@@ -15,7 +15,7 @@
       <template #header>
         <div style="display:flex;justify-content:space-between;align-items:center">
           <span style="font-weight:600">{{ $t('sandbox.providers') }}</span>
-          <el-button type="primary" size="small" @click="openProviderDialog()"><el-icon><Plus /></el-icon> {{ $t('memory.addProfile') }}</el-button>
+          <el-button type="primary" size="small" @click="openProviderDialog()"><el-icon><Plus /></el-icon> {{ $t('sandbox.newProvider') }}</el-button>
         </div>
       </template>
       <el-table :data="providers" v-loading="providerLoading" stripe>

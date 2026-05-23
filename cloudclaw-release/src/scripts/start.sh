@@ -24,7 +24,7 @@ echo "Access: http://localhost:${SERVER_PORT:-8080}"
 
 mkdir -p logs
 
-nohup java $JAVA_OPTS \
+nohup java $JAVA_OPTS -Dfile.encoding=UTF-8 \
     -jar cloudclaw-app-1.0.0.jar \
     --spring.profiles.active="$PROFILE" \
     --spring.config.additional-location=file:./config/ \

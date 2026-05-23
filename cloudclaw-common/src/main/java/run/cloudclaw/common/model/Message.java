@@ -69,6 +69,9 @@ public class Message {
     @Column(name = "request_id", length = 64)
     private String requestId;
 
+    @Column(name = "agent_name", length = 100)
+    private String agentName;
+
     @Column(name = "created_at", nullable = false, updatable = false)
     private LocalDateTime createdAt;
 

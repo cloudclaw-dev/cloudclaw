@@ -65,6 +65,11 @@
           <h3>Skill System</h3>
           <p>Build and share reusable skill packs. Auto-discovery via @Tool annotations.</p>
         </div>
+        <div class="feature-card">
+          <span class="icon">🔗</span>
+          <h3>Multi-Agent Workflow</h3>
+          <p>5 orchestration modes: Pipeline, Parallel, Router, Supervisor, and Handoff for multi-agent collaboration.</p>
+        </div>
       </div>
     </div>
   </section>
@@ -76,10 +81,10 @@
         <div class="terminal-bar"><span></span><span></span><span></span></div>
         <pre><code><span class="dim"># Build & Run — zero dependencies</span>
 $ mvn clean package -DskipTests
-$ java -jar cloudclaw-app/target/cloudclaw-app-1.0.0.jar
+$ java -jar cloudclaw-app/target/cloudclaw-app-1.0.1.jar
 
 <span class="dim"># Cluster mode — PostgreSQL + Redis</span>
-$ java -jar cloudclaw-app/target/cloudclaw-app-1.0.0.jar \
+$ java -jar cloudclaw-app/target/cloudclaw-app-1.0.1.jar \
     --spring.profiles.active=cluster
 
 <span class="dim"># Open browser</span>

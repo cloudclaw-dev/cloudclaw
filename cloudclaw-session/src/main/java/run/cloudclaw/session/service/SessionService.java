@@ -24,9 +24,6 @@ import java.util.UUID;
 
 /**
  * Service layer for session management operations.
- *
- * <p>Handles session CRUD, message storage, and Redis session caching.
- * All user-facing queries enforce user data isolation by filtering on userId.
  */
 @Slf4j
 @Service
@@ -38,14 +35,6 @@ public class SessionService {
     private final SessionCache sessionCache;
     private final ApplicationEventPublisher eventPublisher;
 
-    /**
-     * Create a new session.
-     *
-     * @param userId  the owner of the session
-     * @param agentId the agent associated with the session
-     * @param title   optional title for the session
-     * @return the newly created session
-     */
     @Transactional
     public Session createSession(String userId, String agentId, String title) {
         Session session = new Session();
@@ -60,14 +49,6 @@ public class SessionService {
         return saved;
     }
 
-    /**
-     * List sessions for a given user with pagination, ordered by most recently updated.
-     *
-     * @param userId the user ID to filter by (enforces data isolation)
-     * @param page   page number (0-based)
-     * @param size   page size
-     * @return paginated result of sessions
-     */
     @Transactional(readOnly = true)
     public PageResult<Session> listSessions(String userId, int page, int size) {
         return listSessions(userId, null, page, size);
@@ -92,14 +73,6 @@ public class SessionService {
         );
     }
 
-    /**
-     * Get a session by ID, verifying that it belongs to the requesting user.
-     *
-     * @param userId    the requesting user ID (enforces data isolation)
-     * @param sessionId the session ID
-     * @return the session
-     * @throws BusinessException if the session is not found or does not belong to the user
-     */
     @Transactional(readOnly = true)
     public Session getSession(String userId, String sessionId) {
         Session session = sessionRepository.findById(sessionId)
@@ -113,18 +86,10 @@ public class SessionService {
         return session;
     }
 
-    /**
-     * Delete a session, verifying ownership first.
-     *
-     * @param userId    the requesting user ID (enforces data isolation)
-     * @param sessionId the session ID to delete
-     * @throws BusinessException if the session is not found or does not belong to the user
-     */
     @Transactional
     public void deleteSession(String userId, String sessionId) {
         Session session = getSession(userId, sessionId);
         UUID sessionUuid = UUID.fromString(sessionId);
-        // Delete messages first (no cascade in entity)
         List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
         if (!messages.isEmpty()) {
             messageRepository.deleteAll(messages);
@@ -136,16 +101,8 @@ public class SessionService {
         log.info("Deleted session {} for user {} ({} messages)", sessionId, userId, messages.size());
     }
 
-    /**
-     * Load the message context for a session. Tries Redis cache first;
-     * on cache miss, loads from the database and caches the result.
-     *
-     * @param sessionId the session ID
-     * @return the list of messages in the session, in chronological order
-     */
     @Transactional(readOnly = true)
     public List<Message> loadContext(String sessionId) {
-        // Load from DB directly
         UUID sessionUuid = UUID.fromString(sessionId);
         List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
         try {
@@ -160,34 +117,18 @@ public class SessionService {
         return messages;
     }
 
-    /**
-     * Save a message to the database and update the Redis cache.
-     *
-     * @param message the message to save
-     * @return the saved message (with generated ID and timestamp)
-     */
     @Transactional
     public Message saveMessage(Message message) {
         Message saved = messageRepository.save(message);
         log.debug("Saved message {} for session {}", saved.getId(), saved.getSessionId());
 
-        // Update the session's updatedAt timestamp efficiently
         sessionRepository.updateTimestamp(saved.getSessionId().toString(), LocalDateTime.now());
 
-        // Update the cache with the full context
         refreshContextCache(saved.getSessionId().toString());
 
         return saved;
     }
 
-    /**
-     * Get messages for a session with pagination.
-     *
-     * @param sessionId the session ID
-     * @param page      page number (0-based)
-     * @param size      page size
-     * @return paginated result of messages
-     */
     @Transactional(readOnly = true)
     public PageResult<Message> getMessages(String sessionId, int page, int size) {
         UUID sessionUuid = UUID.fromString(sessionId);
@@ -201,12 +142,6 @@ public class SessionService {
         );
     }
 
-    /**
-     * Update the title of a session.
-     *
-     * @param sessionId the session ID
-     * @param title     the new title
-     */
     @Transactional
     public void updateTitle(String sessionId, String title) {
         Session session = sessionRepository.findById(sessionId)
@@ -217,25 +152,12 @@ public class SessionService {
         log.info("Updated title for session {}", sessionId);
     }
 
-    /**
-     * Refresh the context cache for a session by loading all messages from DB
-     * and saving them to Redis.
-     *
-     * @param sessionId the session ID
-     */
     private void refreshContextCache(String sessionId) {
         UUID sessionUuid = UUID.fromString(sessionId);
         List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
         try { sessionCache.saveContext(sessionId, messages); } catch (Exception e) { log.debug("Cache save failed (non-critical): {}", e.getMessage()); }
     }
 
-    /**
-     * Poll for messages after a given message ID.
-     *
-     * @param sessionId     the session ID
-     * @param afterMessageId return messages created after this message (null = return recent)
-     * @return poll result with messages and hasMore flag
-     */
     @Transactional(readOnly = true)
     public PollResult pollMessages(String sessionId, String afterMessageId) {
         UUID sessionUuid = UUID.fromString(sessionId);
@@ -250,7 +172,6 @@ public class SessionService {
                 messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
             }
         } else {
-            // No afterMessageId: return recent messages
             messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
             if (messages.size() > 50) {
                 messages = messages.subList(messages.size() - 50, messages.size());
@@ -265,9 +186,6 @@ public class SessionService {
         return new PollResult(result, messages.size() >= 100);
     }
 
-    /**
-     * Update lastActiveAt timestamp for a session.
-     */
     @Transactional
     public void updateLastActiveAt(String sessionId) {
         sessionRepository.findById(sessionId).ifPresent(session -> {
@@ -276,19 +194,54 @@ public class SessionService {
         });
     }
 
-    /**
-     * Find a message by its requestId (for idempotency).
-     */
     @Transactional(readOnly = true)
     public Message findMessageByRequestId(String requestId) {
         return messageRepository.findByRequestId(requestId);
     }
 
-    /**
-     * Find a message by its ID.
-     */
     @Transactional(readOnly = true)
     public Message findMessageById(UUID messageId) {
         return messageRepository.findById(messageId).orElse(null);
+    }
+
+    @Transactional
+    public void updateSessionStatus(String sessionId, String status) {
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            session.setStatus(status);
+            session.setUpdatedAt(LocalDateTime.now());
+            sessionRepository.save(session);
+        });
+    }
+
+    /**
+     * Update the active agent path for a session (Agent Transfer v2).
+     */
+    @Transactional
+    public void updateActiveAgentPath(String sessionId, String activeAgentPath) {
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            session.setActiveAgentPath(activeAgentPath);
+            session.setUpdatedAt(LocalDateTime.now());
+            sessionRepository.save(session);
+            log.info("Updated active_agent_path for session {}: {}", sessionId, activeAgentPath);
+        });
+    }
+
+    @Transactional(readOnly = true)
+    public Session findSessionById(String sessionId) {
+        return sessionRepository.findById(sessionId).orElse(null);
+    }
+
+    /**
+     * Update the workflow state JSON for a session (Workflow v3).
+     */
+    @Transactional
+    public void updateWorkflowState(String sessionId, String workflowState) {
+        sessionRepository.findById(sessionId).ifPresent(session -> {
+            session.setWorkflowState(workflowState);
+            session.setUpdatedAt(LocalDateTime.now());
+            sessionRepository.save(session);
+            log.info("Updated workflow_state for session {}: {} chars", sessionId,
+                    workflowState != null ? workflowState.length() : 0);
+        });
     }
 }

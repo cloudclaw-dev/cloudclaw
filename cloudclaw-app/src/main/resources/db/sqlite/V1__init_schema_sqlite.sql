@@ -42,6 +42,9 @@ CREATE TABLE agents (
     sandbox_mode              VARCHAR(20) DEFAULT 'STATELESS',
     sandbox_timeout           INTEGER DEFAULT 30,
     sandbox_provider_id       TEXT,
+    sub_agents                TEXT,
+    workflow_mode             VARCHAR(20),
+    workflow                  TEXT,
     created_by                TEXT REFERENCES users(id) ON DELETE CASCADE,
     enabled                   BOOLEAN DEFAULT TRUE,
     created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -114,6 +117,9 @@ CREATE TABLE sessions (
     user_id         TEXT NOT NULL,
     agent_id        TEXT NOT NULL REFERENCES agents(id),
     title           VARCHAR(255),
+    status          VARCHAR(20) DEFAULT 'ACTIVE',
+    active_agent_path TEXT DEFAULT 'root',
+    workflow_state   TEXT,
     last_active_at  TIMESTAMP,
     created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -134,6 +140,7 @@ CREATE TABLE messages (
     is_summary          BOOLEAN DEFAULT FALSE,
     status              VARCHAR(20) NOT NULL DEFAULT 'completed',
     request_id          VARCHAR(64),
+    agent_name          VARCHAR(100),
     created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 CREATE INDEX idx_messages_session ON messages(session_id, created_at);

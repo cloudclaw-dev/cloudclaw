@@ -4,6 +4,8 @@ import lombok.AllArgsConstructor;
 import lombok.Getter;
 import lombok.NoArgsConstructor;
 import lombok.Setter;
+import run.cloudclaw.common.dto.workflow.WorkflowDef;
+import run.cloudclaw.common.dto.workflow.WorkflowMode;
 
 import java.util.List;
 
@@ -36,4 +38,27 @@ public class AgentConfig {
     private String sandboxProviderId;
     private String sandboxMode;
     private Integer sandboxTimeout;
+
+    // Sub-agents (Agent Transfer v2)
+    private List<SubAgentDef> subAgents;
+
+    // Workflow v3
+    /** Workflow mode string from DB */
+    private String workflowMode;
+    /** Parsed workflow definition */
+    private WorkflowDef workflow;
+
+    @Getter
+    @Setter
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class SubAgentDef {
+        private String name;
+        private String displayName;
+        private String description;
+        private String systemPrompt;
+        private String modelId;
+        private java.util.List<String> mcpServerIds;
+        private java.util.List<String> skillIds;
+    }
 }

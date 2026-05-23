@@ -7,7 +7,17 @@ export default defineConfig({
   base: '/',
   build: {
     outDir: resolve(__dirname, 'dist'),
-    emptyOutDir: true
+    emptyOutDir: true,
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          'vendor-element': ['element-plus'],
+          'vendor-highlight': ['highlight.js'],
+          'vendor-markdown': ['markdown-it'],
+          'vendor-vue': ['vue', 'vue-router', 'vue-i18n']
+        }
+      }
+    }
   },
   resolve: {
     alias: { '@': resolve(__dirname, 'src') }

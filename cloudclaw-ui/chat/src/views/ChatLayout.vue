@@ -3,11 +3,12 @@
     <el-container class="main-container">
       <!-- Left Nav Bar -->
       <el-aside :width="navCollapsed ? '64px' : '200px'" class="nav-bar" :class="{ collapsed: navCollapsed }">
-        <a href="http://cloudclaw.run" target="_blank" rel="noopener" class="nav-bar-header-link">
+        <a href="http://cloudclaw.run" target="_blank" rel="noopener" class="nav-bar-header-link" style="text-decoration:none">
         <div class="nav-bar-header">
           <img src="@/assets/logo.png" alt="CC" class="nav-logo" />
           <span v-if="!navCollapsed" class="nav-brand">CloudClaw</span>
         </div>
+        <div v-if="!navCollapsed" class="nav-version">v{{ systemVersion }} · {{ systemMode }}</div>
         </a>
         <div class="nav-bar-menu">
           <div class="nav-bar-item" :class="{ active: $route.path === '/' || $route.path === '' }" @click="$router.push('/')" :title="navCollapsed ? t('nav.chat') : ''">
@@ -79,6 +80,7 @@
                 <el-icon v-if="!isMobile" :size="18" class="chat-header-icon-text"><ChatLineSquare /></el-icon>
                 <span class="header-title">{{ currentSessionTitle || 'CloudClaw Chat' }}</span>
               </div>
+              <el-tag v-if="activeAgentName" type="warning" size="small" effect="plain" style="margin-right: 8px">{{ activeAgentName }}</el-tag>
               <el-tag v-if="currentAgent" type="info" size="small" effect="plain">{{ currentAgent.name }}</el-tag>
             </el-header>
             <el-main class="messages-area" ref="messagesAreaRef">
@@ -105,7 +107,7 @@
                         <el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar>
                       </div>
                       <div class="message-content">
-                        <div class="message-meta">Assistant · {{ formatTime(msg.createdAt) }}</div>
+                        <div class="message-meta">Assistant<span v-if="msg.agentName" class="agent-label"> · {{ msg.agentName }}</span> · {{ formatTime(msg.createdAt) }}</div>
                         <template v-if="msg.segments && msg.segments.length > 0">
                           <template v-for="(seg, si) in msg.segments" :key="si">
                             <div v-if="seg.type === 'tool_call'" class="tool-call-card">
@@ -124,10 +126,91 @@
                       </div>
                     </template>
                   </div>
-                  <div v-if="isStreaming && (streamingContent || streamingSegments.length > 0)" class="message-row assistant">
+                  <div v-if="isStreaming && (streamingContent || streamingSegments.length > 0 || workflowState)" class="message-row assistant">
                     <div class="message-avatar"><el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar></div>
                     <div class="message-content">
-                      <div class="message-meta">Assistant</div>
+                      <div class="message-meta">Assistant<span v-if="activeAgentName" class="agent-label"> · {{ activeAgentName }}</span></div>
+                      <!-- Workflow V3 Status Panel -->
+                      <div v-if="workflowState" class="workflow-panel">
+                        <div class="workflow-panel-header">
+                          <el-icon class="workflow-panel-icon"><SetUp /></el-icon>
+                          <span class="workflow-panel-title">
+                            <template v-if="workflowState.mode === 'pipeline'">{{ t('chat.workflowPipeline').replace(': ', '') }}</template>
+                            <template v-else-if="workflowState.mode === 'parallel'">{{ t('chat.workflowParallel').replace(': ', '') }}</template>
+                            <template v-else-if="workflowState.mode === 'router'">{{ t('chat.workflowRouter').replace(': ', '').replace(':','') }}</template>
+                            <template v-else-if="workflowState.mode === 'supervisor'">{{ t('chat.workflowSupervisor').replace(': ', '') }}</template>
+                            <template v-else-if="workflowState.mode === 'handoff'">{{ t('chat.workflowHandoff').replace(': ', '').replace(':','') }}</template>
+                          </span>
+                          <span class="workflow-panel-mode-tag">{{ workflowState.mode }}</span>
+                        </div>
+                        <div class="workflow-panel-body">
+                          <!-- Pipeline -->
+                          <template v-if="workflowState.mode === 'pipeline'">
+                            <div class="workflow-steps-row">
+                              <template v-for="(step, si) in workflowState.steps" :key="si">
+                                <div v-if="si > 0" class="workflow-step-arrow"><el-icon><Right /></el-icon></div>
+                                <div class="workflow-step-item" :class="'step-' + step.status">
+                                  <span v-if="step.status === 'running'" class="step-icon"><el-icon class="is-loading"><Loading /></el-icon></span>
+                                  <span v-else-if="step.status === 'done'" class="step-icon"><el-icon style="color: var(--cc-success)"><Check /></el-icon></span>
+                                  <span v-else class="step-icon"><el-icon><Clock /></el-icon></span>
+                                  <span class="step-label">{{ step.name }}</span>
+                                </div>
+                              </template>
+                            </div>
+                          </template>
+                          <!-- Parallel -->
+                          <template v-else-if="workflowState.mode === 'parallel'">
+                            <div class="workflow-parallel-grid">
+                              <div v-for="(step, si) in workflowState.steps" :key="si" class="workflow-parallel-node" :class="'step-' + step.status">
+                                <span v-if="step.status === 'running'" class="step-icon"><el-icon class="is-loading"><Loading /></el-icon></span>
+                                <span v-else-if="step.status === 'done'" class="step-icon"><el-icon style="color: var(--cc-success)"><Check /></el-icon></span>
+                                <span v-else class="step-icon"><el-icon><Clock /></el-icon></span>
+                                <span class="step-label">{{ step.name }}</span>
+                              </div>
+                            </div>
+                            <div v-if="workflowState.mergeStatus === 'merging'" class="workflow-merge-row">
+                              <el-icon class="is-loading" style="color: var(--cc-warning)"><Loading /></el-icon>
+                              <span class="merge-label">{{ t('chat.workflowParallelMerging') }}</span>
+                            </div>
+                          </template>
+                          <!-- Router -->
+                          <template v-else-if="workflowState.mode === 'router'">
+                            <div class="workflow-router-info">
+                              <el-tag type="primary" effect="plain" size="small" class="router-target-tag">
+                                <el-icon style="margin-right:4px"><Right /></el-icon>{{ workflowState.activeNode }}
+                              </el-tag>
+                              <span v-if="workflowState.reason" class="workflow-router-reason">{{ workflowState.reason }}</span>
+                            </div>
+                          </template>
+                          <!-- Supervisor -->
+                          <template v-else-if="workflowState.mode === 'supervisor'">
+                            <div v-if="workflowState.steps.length > 0" class="workflow-supervisor-steps">
+                              <div v-for="(step, si) in workflowState.steps" :key="si" class="workflow-supervisor-step" :class="'step-' + step.status">
+                                <span v-if="step.status === 'running'" class="step-icon"><el-icon class="is-loading"><Loading /></el-icon></span>
+                                <span v-else-if="step.status === 'done'" class="step-icon"><el-icon style="color: var(--cc-success)"><Check /></el-icon></span>
+                                <span v-else class="step-icon"><el-icon><Clock /></el-icon></span>
+                                <span class="step-label">{{ step.name }}</span>
+                              </div>
+                            </div>
+                            <div v-if="workflowState.activeNode" class="workflow-supervisor-delegate">
+                              <el-tag type="warning" effect="plain" size="small">
+                                <el-icon style="margin-right:4px"><Promotion /></el-icon>{{ workflowState.activeNode }}
+                              </el-tag>
+                            </div>
+                            <div v-if="workflowState.supervisorAction" class="workflow-supervisor-action">
+                              <el-icon style="margin-right:4px"><Monitor /></el-icon>{{ workflowState.supervisorAction }}
+                            </div>
+                          </template>
+                          <!-- Handoff -->
+                          <template v-else-if="workflowState.mode === 'handoff'">
+                            <div class="workflow-handoff-info">
+                              <el-tag type="success" effect="plain" size="small">
+                                <el-icon style="margin-right:4px"><Promotion /></el-icon>{{ workflowState.activeNode }}
+                              </el-tag>
+                            </div>
+                          </template>
+                        </div>
+                      </div>
                       <template v-for="(seg, si) in streamingSegments" :key="si">
                         <div v-if="seg.type === 'tool_call'" class="tool-call-card">
                           <div class="tool-call-header"><el-icon class="tool-icon"><SetUp /></el-icon><span class="tool-name">{{ seg.toolName }}</span></div>
@@ -137,6 +220,7 @@
                           <div class="tool-result-header"><el-icon class="tool-icon"><Finished /></el-icon><span>{{ seg.toolName }} result</span></div>
                           <pre class="tool-result-content">{{ seg.content }}</pre>
                         </div>
+                        <div v-else-if="seg.type === 'workflow_status'" class="workflow-event-text">{{ seg.content }}</div>
                         <div v-else class="message-text markdown-body streaming" v-html="renderMarkdown(seg.content)" />
                       </template>
                       <span class="cursor-blink">|</span>
@@ -145,7 +229,7 @@
                   <div v-if="isStreaming && !streamingContent && streamingSegments.length === 0" class="message-row assistant">
                     <div class="message-avatar"><el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar></div>
                     <div class="message-content">
-                      <div class="message-meta">Assistant</div>
+                      <div class="message-meta">Assistant<span v-if="activeAgentName" class="agent-label"> · {{ activeAgentName }}</span></div>
                       <div class="message-text"><div class="typing-indicator"><span></span><span></span><span></span></div></div>
                     </div>
                   </div>
@@ -258,12 +342,49 @@ import {
   User,
   Connection,
   Reading,
-  Cpu
+  Cpu,
+  Loading,
+  Check,
+  Clock,
+  Right,
+  Grid
 } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
-import hljs from 'highlight.js'
+import hljs from 'highlight.js/lib/core'
+import javascript from 'highlight.js/lib/languages/javascript'
+import typescript from 'highlight.js/lib/languages/typescript'
+import python from 'highlight.js/lib/languages/python'
+import java from 'highlight.js/lib/languages/java'
+import bash from 'highlight.js/lib/languages/bash'
+import sql from 'highlight.js/lib/languages/sql'
+import json from 'highlight.js/lib/languages/json'
+import yaml from 'highlight.js/lib/languages/yaml'
+import xml from 'highlight.js/lib/languages/xml'
+import css from 'highlight.js/lib/languages/css'
+import html from 'highlight.js/lib/languages/xml'
+import plaintext from 'highlight.js/lib/languages/plaintext'
+
+hljs.registerLanguage('javascript', javascript)
+hljs.registerLanguage('js', javascript)
+hljs.registerLanguage('typescript', typescript)
+hljs.registerLanguage('ts', typescript)
+hljs.registerLanguage('python', python)
+hljs.registerLanguage('py', python)
+hljs.registerLanguage('java', java)
+hljs.registerLanguage('bash', bash)
+hljs.registerLanguage('shell', bash)
+hljs.registerLanguage('sql', sql)
+hljs.registerLanguage('json', json)
+hljs.registerLanguage('yaml', yaml)
+hljs.registerLanguage('yml', yaml)
+hljs.registerLanguage('xml', xml)
+hljs.registerLanguage('html', html)
+hljs.registerLanguage('css', css)
+hljs.registerLanguage('plaintext', plaintext)
+hljs.registerLanguage('text', plaintext)
 import 'highlight.js/styles/github.css'
 import 'highlight.js/styles/github-dark.css'
+import api from '@/api/index'
 import {
   sessionApi,
   messageApi,
@@ -291,7 +412,7 @@ interface Session {
 }
 
 interface MessageSegment {
-  type: 'text' | 'tool_call' | 'tool_result'
+  type: 'text' | 'tool_call' | 'tool_result' | 'workflow_status'
   content: string
   toolName?: string
 }
@@ -310,14 +431,33 @@ const navCollapsed = ref(false)
 const sidebarCollapsed = ref(false)
 const agents = ref<Agent[]>([])
 const sessions = ref<Session[]>([])
+const systemVersion = ref('1.0.1')
+const systemMode = ref('standalone')
 const currentSessionId = ref('')
 const messages = ref<Message[]>([])
 const inputMessage = ref('')
 const isStreaming = ref(false)
 const contextStats = ref<any>(null)
+// Agent Transfer v2: track current active agent
+const activeAgentName = ref('')
 const streamingContent = ref('')
 const streamingSegments = ref<MessageSegment[]>([])
 const messagesAreaRef = ref<HTMLElement | null>(null)
+
+// Workflow V3: track workflow status during streaming
+interface WorkflowStepStatus {
+  name: string
+  status: 'pending' | 'running' | 'done'
+}
+interface WorkflowState {
+  mode: string
+  steps: WorkflowStepStatus[]
+  activeNode: string
+  supervisorAction: string
+  mergeStatus: string
+  reason: string
+}
+const workflowState = ref<WorkflowState | null>(null)
 
 // New session dialog
 const showNewSessionDialog = ref(false)
@@ -440,7 +580,7 @@ const adminMenuItems = computed(() => [
   { path: '/skills', title: t('nav.skill'), shortTitle: t('agent.skills'), icon: Reading },
   { path: '/llm', title: t('nav.llm'), shortTitle: 'LLM', icon: Cpu },
   { path: '/users', title: t('nav.user'), shortTitle: t('nav.user'), icon: User },
-  { path: '/sandboxes', title: t('nav.sandbox'), shortTitle: t('nav.sandbox'), icon: Monitor },
+  { path: '/sandboxes', title: t('nav.sandbox'), shortTitle: t('nav.sandbox'), icon: Grid },
   { path: '/monitor', title: t('nav.monitor'), shortTitle: t('nav.monitor'), icon: Monitor }
 ])
 
@@ -497,7 +637,9 @@ const loadMessages = async (sessionId: string) => {
     messages.value = items.map((m: any) => ({
       role: m.role,
       content: m.content,
-      createdAt: m.createdAt
+      createdAt: m.createdAt,
+      agentName: m.agentName || '',
+      segments: m.segments || undefined
     }))
     scrollToBottom()
   } catch (e) {
@@ -508,6 +650,12 @@ const loadMessages = async (sessionId: string) => {
 // ===== Session Actions =====
 const selectSession = (sessionId: string) => {
   if (isStreaming.value) return
+  // Clear previous session state immediately to prevent content leaking
+  messages.value = []
+  streamingContent.value = ''
+  streamingSegments.value = []
+  workflowState.value = null
+  activeAgentName.value = ''
   currentSessionId.value = sessionId
   loadMessages(sessionId)
 }
@@ -597,6 +745,7 @@ const sendMessage = async () => {
   isStreaming.value = true
   streamingContent.value = ''
   streamingSegments.value = []
+  workflowState.value = null
   abortController = new AbortController()
 
   scrollToBottom()
@@ -685,7 +834,116 @@ const sendMessage = async () => {
         const type = chunk.type || 'text'
         const text = chunk.content || ''
 
-        if (type === 'tool_call') {
+        // Workflow V3 events - handled before agent_switched
+        if (type === 'pipeline_step') {
+          // Workflow V3: Pipeline step event
+          if (!workflowState.value) {
+            workflowState.value = { mode: 'pipeline', steps: [], activeNode: '', supervisorAction: '', mergeStatus: '', reason: '' }
+          }
+          const nodeName = chunk.node || ''
+          const existing = workflowState.value.steps.find(s => s.name === nodeName)
+          if (!existing) {
+            workflowState.value.steps.push({ name: nodeName, status: 'running' })
+          } else {
+            existing.status = 'running'
+          }
+          // Mark previous steps as done
+          const currentIdx = workflowState.value.steps.findIndex(s => s.name === nodeName)
+          for (let i = 0; i < currentIdx; i++) {
+            workflowState.value.steps[i].status = 'done'
+          }
+        } else if (type === 'parallel_start') {
+          // Workflow V3: Parallel starts
+          const nodes: string[] = chunk.nodes || []
+          workflowState.value = {
+            mode: 'parallel',
+            steps: nodes.map(n => ({ name: n, status: 'pending' as const })),
+            activeNode: '',
+            supervisorAction: '',
+            mergeStatus: '',
+            reason: ''
+          }
+        } else if (type === 'parallel_progress') {
+          // Parallel node is now running
+          if (workflowState.value) {
+            const node = workflowState.value.steps.find(s => s.name === chunk.node)
+            if (node) node.status = 'running'
+          }
+        } else if (type === 'parallel_complete') {
+          // Parallel node completed
+          if (workflowState.value) {
+            const node = workflowState.value.steps.find(s => s.name === chunk.node)
+            if (node) node.status = 'done'
+          }
+        } else if (type === 'parallel_merge') {
+          // Parallel merging
+          if (workflowState.value) {
+            workflowState.value.mergeStatus = 'merging'
+          }
+        } else if (type === 'router_select') {
+          // Workflow V3: Router selected a node
+          const target = chunk.targetAgent || ''
+          const reason = chunk.reason || ''
+          workflowState.value = {
+            mode: 'router',
+            steps: [],
+            activeNode: target,
+            supervisorAction: '',
+            mergeStatus: '',
+            reason: reason
+          }
+          activeAgentName.value = target
+        } else if (type === 'supervisor_plan') {
+          // Workflow V3: Supervisor planning
+          const planSteps: string[] = chunk.plan || []
+          workflowState.value = {
+            mode: 'supervisor',
+            steps: planSteps.map(s => ({ name: s, status: 'pending' as const })),
+            activeNode: '',
+            supervisorAction: t('chat.workflowSupervisorReviewing'),
+            mergeStatus: '',
+            reason: ''
+          }
+        } else if (type === 'supervisor_delegate') {
+          // Supervisor delegating to a sub-agent
+          const target = chunk.targetAgent || ''
+          if (!workflowState.value) {
+            workflowState.value = { mode: 'supervisor', steps: [], activeNode: '', supervisorAction: '', mergeStatus: '', reason: '' }
+          }
+          workflowState.value.supervisorAction = t('chat.workflowSupervisorDelegating', { name: target })
+          workflowState.value.activeNode = target
+        } else if (type === 'supervisor_result') {
+          // Supervisor received result from sub-agent
+          if (workflowState.value) {
+            const node = workflowState.value.steps.find(s => s.name === chunk.from)
+            if (node) node.status = 'done'
+            workflowState.value.supervisorAction = t('chat.workflowSupervisorReviewing')
+          }
+        } else if (type === 'handoff') {
+          // Workflow V3: Handoff event
+          const target = chunk.targetAgent || ''
+          workflowState.value = {
+            mode: 'handoff',
+            steps: [],
+            activeNode: target,
+            supervisorAction: '',
+            mergeStatus: '',
+            reason: ''
+          }
+          activeAgentName.value = target
+        } else if (type === 'agent_switched') {
+          // Agent Transfer v2: show transfer notification
+          const displayName = chunk.displayName || chunk.targetAgent || ''
+          activeAgentName.value = displayName
+          streamingSegments.value.push({
+            type: 'text' as const,
+            content: '↩ ' + t('chat.agentSwitched', { name: displayName }),
+          })
+          // Update workflowState if in handoff mode
+          if (workflowState.value && workflowState.value.mode === 'handoff') {
+            workflowState.value.activeNode = displayName
+          }
+        } else if (type === 'tool_call') {
           // Add tool call segment
           streamingSegments.value.push({
             type: 'tool_call',
@@ -721,9 +979,12 @@ const sendMessage = async () => {
         }
         streamingContent.value = ''
         streamingSegments.value = []
+        workflowState.value = null
         isStreaming.value = false
         if (stats) contextStats.value = stats
         scrollToBottom()
+
+        // Agent Transfer v2: active agent is tracked by activeAgentName ref
 
         // Start polling for auto-generated title
         startTitleRefresh()
@@ -733,6 +994,7 @@ const sendMessage = async () => {
         isStreaming.value = false
         streamingContent.value = ''
         streamingSegments.value = []
+        workflowState.value = null
         ElMessage.error(t('common.failed'))
       },
       abortController?.signal
@@ -741,6 +1003,7 @@ const sendMessage = async () => {
     isStreaming.value = false
     streamingContent.value = ''
     streamingSegments.value = []
+    workflowState.value = null
   }
 }
 
@@ -781,6 +1044,7 @@ const stopGeneration = () => {
   }
   streamingContent.value = ''
   streamingSegments.value = []
+  workflowState.value = null
   isStreaming.value = false
 }
 
@@ -825,6 +1089,14 @@ onMounted(async () => {
   await loadAgents()
   await loadSessions()
 
+  // Load system info
+  try {
+    const infoRes: any = await api.get('/admin/stats/info')
+    const info = infoRes?.data?.data || infoRes?.data || infoRes
+    if (info?.version) systemVersion.value = info.version
+    if (info?.mode) systemMode.value = info.mode
+  } catch (e) { /* ignore */ }
+
   // Refresh agents when tab becomes visible
   document.addEventListener('visibilitychange', () => {
     if (!document.hidden) loadAgents()
@@ -836,6 +1108,17 @@ watch(selectedAgentId, async (newAgentId) => {
   // Clear current session when switching agent
   currentSessionId.value = ''
   messages.value = []
+  // Reset all streaming state to prevent content leaking
+  streamingContent.value = ''
+  streamingSegments.value = []
+  workflowState.value = null
+  activeAgentName.value = ''
+  isStreaming.value = false
+  // Abort any active SSE stream
+  if (abortController) {
+    abortController.abort()
+    abortController = null
+  }
   newSessionAgentId.value = newAgentId
   await loadSessions()
 })
@@ -952,6 +1235,14 @@ watch(sidebarCollapsed, (val) => {
   font-size: 16px;
   font-weight: 700;
   color: var(--cc-text-primary);
+}
+.nav-version {
+  font-size: 10px;
+  color: var(--cc-text-tertiary, #999);
+  text-align: center;
+  margin-top: -4px;
+  margin-bottom: 4px;
+  letter-spacing: 0.5px;
 }
 .nav-bar.collapsed .nav-bar-header { justify-content: center; }
 .nav-logo { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; }
@@ -1371,6 +1662,206 @@ watch(sidebarCollapsed, (val) => {
 @keyframes typing { 0%,60%,100% { opacity: 0.3; transform: translateY(0); } 30% { opacity: 1; transform: translateY(-4px); } }
 .streaming-controls { text-align: center; padding: 8px 0; }
 
+/* ===== Workflow V3 Status Panel ===== */
+.workflow-panel {
+  margin-bottom: 10px;
+  background: var(--cc-bg-tertiary, #eef0f4);
+  border-radius: var(--cc-radius, 10px);
+  border: 1px solid var(--cc-border);
+  overflow: hidden;
+  font-size: 13px;
+}
+.chat-layout.dark .workflow-panel {
+  background: #262627;
+}
+.workflow-panel-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 12px;
+  background: rgba(51,112,255,0.06);
+  border-bottom: 1px solid var(--cc-border);
+}
+.chat-layout.dark .workflow-panel-header {
+  background: rgba(51,112,255,0.12);
+}
+.workflow-panel-icon {
+  color: var(--cc-accent);
+  font-size: 16px;
+}
+.workflow-panel-title {
+  font-weight: 600;
+  color: var(--cc-accent);
+  white-space: nowrap;
+}
+.workflow-panel-mode-tag {
+  font-size: 11px;
+  padding: 1px 8px;
+  border-radius: 10px;
+  background: var(--cc-accent-light, #e8f0ff);
+  color: var(--cc-accent);
+  font-weight: 500;
+  text-transform: uppercase;
+  margin-left: auto;
+}
+.chat-layout.dark .workflow-panel-mode-tag {
+  background: #1a2a44;
+}
+.workflow-panel-body {
+  padding: 8px 12px;
+}
+.workflow-steps-row {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+.workflow-step-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.workflow-step-item.step-pending {
+  color: var(--cc-text-muted);
+  background: transparent;
+}
+.workflow-step-item.step-running {
+  color: var(--cc-accent);
+  background: var(--cc-accent-light, #e8f0ff);
+}
+.chat-layout.dark .workflow-step-item.step-running {
+  background: #1a2a44;
+}
+.workflow-step-item.step-done {
+  color: var(--cc-success);
+  background: #e8f5e9;
+}
+.chat-layout.dark .workflow-step-item.step-done {
+  background: #1a2a1c;
+}
+.workflow-step-arrow {
+  color: var(--cc-text-muted);
+  font-size: 12px;
+  display: flex;
+  align-items: center;
+}
+.step-icon {
+  display: inline-flex;
+  align-items: center;
+  font-size: 14px;
+}
+.step-label {
+  font-weight: 500;
+}
+.workflow-parallel-grid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+.workflow-parallel-node {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  border: 1px solid var(--cc-border);
+  background: var(--cc-bg-primary);
+}
+.workflow-parallel-node.step-pending {
+  color: var(--cc-text-muted);
+  opacity: 0.7;
+}
+.workflow-parallel-node.step-running {
+  color: var(--cc-accent);
+  border-color: var(--cc-accent);
+}
+.workflow-parallel-node.step-done {
+  color: var(--cc-success);
+  border-color: var(--cc-success);
+}
+.workflow-merge-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-top: 6px;
+  padding: 4px 0;
+  font-size: 12px;
+  color: var(--cc-warning);
+}
+.merge-label {
+  font-weight: 500;
+}
+.workflow-router-info {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+}
+.router-target-tag {
+  font-weight: 600;
+}
+.workflow-router-reason {
+  color: var(--cc-text-secondary);
+  font-size: 12px;
+  font-style: italic;
+}
+.workflow-supervisor-steps {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-bottom: 4px;
+}
+.workflow-supervisor-step {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  font-size: 12px;
+}
+.workflow-supervisor-step.step-pending {
+  color: var(--cc-text-muted);
+}
+.workflow-supervisor-step.step-running {
+  color: var(--cc-accent);
+  background: var(--cc-accent-light, #e8f0ff);
+}
+.chat-layout.dark .workflow-supervisor-step.step-running {
+  background: #1a2a44;
+}
+.workflow-supervisor-step.step-done {
+  color: var(--cc-success);
+  background: #e8f5e9;
+}
+.chat-layout.dark .workflow-supervisor-step.step-done {
+  background: #1a2a1c;
+}
+.workflow-supervisor-delegate {
+  margin: 4px 0;
+}
+.workflow-supervisor-action {
+  display: flex;
+  align-items: center;
+  color: var(--cc-text-secondary);
+  font-size: 12px;
+  margin-top: 2px;
+}
+.workflow-handoff-info {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.workflow-event-text {
+  font-size: 12px;
+  color: var(--cc-text-muted);
+  padding: 2px 0;
+  font-style: italic;
+}
+
 /* ===== Input Area ===== */
 .input-area {
   padding: 0 !important;
@@ -1428,6 +1919,10 @@ watch(sidebarCollapsed, (val) => {
 .context-warn { background: var(--cc-warning); }
 .context-danger { background: var(--cc-danger); }
 .context-bar-label { font-size: 11px; color: var(--cc-text-muted); white-space: nowrap; }
+.agent-label {
+  color: var(--cc-accent);
+  font-weight: 500;
+}
 
 /* ===== Admin Page Area ===== */
 .admin-page-area {

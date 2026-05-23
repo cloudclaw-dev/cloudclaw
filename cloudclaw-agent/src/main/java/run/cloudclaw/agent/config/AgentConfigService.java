@@ -22,7 +22,6 @@ import java.util.UUID;
 
 /**
  * Service for loading and resolving Agent configuration.
- * Uses Spring CacheManager abstraction — works with Caffeine (standalone) or Redis (distributed).
  */
 @Service
 @Slf4j
@@ -105,10 +104,10 @@ public class AgentConfigService {
             if (model != null && model.getContextWindow() != null) {
                 config.setContextWindow(model.getContextWindow());
             } else {
-                config.setContextWindow(128000); // default 128K
+                config.setContextWindow(128000);
             }
         } catch (Exception e) {
-        config.setContextWindow(128000); // default
+            config.setContextWindow(128000);
         }
 
         config.setCompressionThreshold(agent.getCompressionThreshold());
@@ -116,18 +115,49 @@ public class AgentConfigService {
         config.setContextUsageThreshold(agent.getContextUsageThreshold());
         config.setMaxToolResultChars(agent.getMaxToolResultChars() != null ? agent.getMaxToolResultChars() : 3000);
 
-        // Memory tools configuration
         config.setEnableMemoryTools(agent.getEnableMemoryTools() != null ? agent.getEnableMemoryTools() : true);
         config.setMemoryProfileMaxTokens(agent.getMemoryProfileMaxTokens());
         config.setMemoryTaskMaxTokens(agent.getMemoryTaskMaxTokens());
 
-        // Sandbox configuration
         config.setSandboxEnabled(agent.getSandboxEnabled() != null ? agent.getSandboxEnabled() : false);
         config.setSandboxMode(agent.getSandboxMode() != null ? agent.getSandboxMode() : "STATELESS");
         config.setSandboxTimeout(agent.getSandboxTimeout() != null ? agent.getSandboxTimeout() : 30);
         config.setSandboxProviderId(agent.getSandboxProviderId());
 
-        // Resolve backend from provider if set
+        // Parse sub_agents JSON (Agent Transfer v2)
+        if (agent.getSubAgents() != null && !agent.getSubAgents().isBlank()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                java.util.List<AgentConfig.SubAgentDef> subAgents = mapper.readValue(
+                        agent.getSubAgents(),
+                        mapper.getTypeFactory().constructCollectionType(java.util.List.class, AgentConfig.SubAgentDef.class));
+                config.setSubAgents(subAgents);
+                log.debug("Parsed {} sub-agents for agent {}", subAgents.size(), agent.getId());
+            } catch (Exception e) {
+                log.warn("Failed to parse sub_agents for agent {}: {}", agent.getId(), e.getMessage());
+            }
+        }
+
+        // Parse workflow JSON (Workflow v3)
+        config.setWorkflowMode(agent.getWorkflowMode());
+        log.info("Loading agent {}: workflowMode={}, workflow={}", agent.getId(),
+                agent.getWorkflowMode(),
+                agent.getWorkflow() != null ? agent.getWorkflow().length() + " chars" : "null");
+        if (agent.getWorkflow() != null && !agent.getWorkflow().isBlank()) {
+            try {
+                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
+                run.cloudclaw.common.dto.workflow.WorkflowDef workflow = mapper.readValue(
+                        agent.getWorkflow(), run.cloudclaw.common.dto.workflow.WorkflowDef.class);
+                config.setWorkflow(workflow);
+                log.debug("Parsed workflow for agent {}: mode={}, nodes={}",
+                        agent.getId(), workflow.getMode(),
+                        workflow.getNodes() != null ? workflow.getNodes().size() : 0);
+            } catch (Exception e) {
+                log.warn("Failed to parse workflow for agent {}: {}", agent.getId(), e.getMessage());
+            }
+        }
+
+        // Resolve sandbox backend from provider if set
         if (agent.getSandboxProviderId() != null) {
             try {
                 SandboxProvider provider = sandboxProviderRepository.findById(UUID.fromString(agent.getSandboxProviderId())).orElse(null);

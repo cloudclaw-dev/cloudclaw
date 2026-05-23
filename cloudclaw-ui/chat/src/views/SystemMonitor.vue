@@ -38,8 +38,16 @@
         </el-card>
       </el-tab-pane>
 
-      <!-- 用量趋势 -->
+      <!-- 关键指标 -->
       <el-tab-pane :label="$t('monitor.keyMetrics')" name="usage">
+        <!-- 统计卡片 -->
+        <div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(180px,1fr));gap:16px;margin-bottom:20px">
+          <el-card v-for="s in statCards" :key="s.label" shadow="hover" style="text-align:center">
+            <div style="font-size:24px;font-weight:700;color:var(--el-color-primary)">{{ s.value }}</div>
+            <div style="font-size:13px;color:#909399;margin-top:4px">{{ s.label }}</div>
+          </el-card>
+        </div>
+        <!-- 趋势图 -->
         <el-card shadow="hover" class="admin-card">
           <template #header><span>{{ $t('monitor.keyMetrics') }}</span></template>
           <div ref="chartRef" style="height: 500px"></div>
@@ -98,18 +106,32 @@
 </template>
 
 <script setup lang="ts">
-import { ref, onMounted, watch, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, watch, nextTick } from 'vue'
 import { Monitor, Refresh, Search } from '@element-plus/icons-vue'
 import * as echarts from 'echarts'
 import { getLogs, getUsageStats } from '@/api/admin'
 import { adminApi } from '@/api/chat'
 import '@/assets/admin.css'
+import { useI18n } from 'vue-i18n'
+
+const { t } = useI18n()
 
 const activeSection = ref('logs')
 const logs = ref<any[]>([])
 const logLoading = ref(false)
 const logLevel = ref('')
 const chartRef = ref<HTMLDivElement>()
+const statsData = ref<any>({})
+
+const statCards = computed(() => [
+  { label: t('nav.user'), value: statsData.value.userCount ?? '-' },
+  { label: t('nav.session'), value: statsData.value.sessionCount ?? '-' },
+  { label: t('monitor.totalMessages'), value: statsData.value.messageCount ?? '-' },
+  { label: t('nav.agent'), value: statsData.value.agentCount ?? '-' },
+  { label: t('llm.tokensIn'), value: statsData.value.totalTokensIn ?? '-' },
+  { label: t('llm.tokensOut'), value: statsData.value.totalTokensOut ?? '-' },
+  { label: t('llm.requestCount'), value: statsData.value.totalRequests ?? '-' },
+])
 
 const loadLogs = async () => {
   logLoading.value = true
@@ -123,28 +145,34 @@ const initChart = async () => {
   if (!chartRef.value) return
   try {
     const data: any = await getUsageStats()
-    const daily = data.daily ?? data.data?.daily ?? []
-    const chart = echarts.init(chartRef.value)
-    chart.setOption({
-      tooltip: { trigger: 'axis' },
-      legend: { data: [t('llm.tokenStats'), t('llm.usageCount')] },
-      xAxis: { type: 'category', data: daily.map((i: any) => i.date) },
-      yAxis: [
-        { type: 'value', name: 'Tokens' },
-        { type: 'value', name: t('llm.usageCount') }
-      ],
-      series: [
-        { name: t('llm.tokenStats'), type: 'line', smooth: true, data: daily.map((i: any) => i.tokens), areaStyle: { opacity: 0.2 } },
-        { name: t('llm.usageCount'), type: 'bar', yAxisIndex: 1, data: daily.map((i: any) => i.requests) }
-      ]
+    const resp = data.data ?? data
+    statsData.value = resp
+    const daily = resp.daily ?? []
+    setTimeout(() => {
+      if (!chartRef.value) { console.warn('chartRef still null'); return }
+      const chart = echarts.init(chartRef.value)
+      chart.setOption({
+        tooltip: { trigger: 'axis' },
+        legend: { data: [t('llm.tokenStats'), t('llm.usageCount')] },
+        xAxis: { type: 'category', data: daily.map((i: any) => i.date) },
+        yAxis: [
+          { type: 'value', name: 'Tokens' },
+          { type: 'value', name: t('llm.usageCount') }
+        ],
+        series: [
+          { name: t('llm.tokenStats'), type: 'line', smooth: true, data: daily.map((i: any) => i.tokens), areaStyle: { opacity: 0.2 } },
+          { name: t('llm.usageCount'), type: 'bar', yAxisIndex: 1, data: daily.map((i: any) => i.requests) }
+        ]
+      })
     })
-  } catch {}
+  } catch (e) { console.error('initChart error:', e) }
 }
 
-// Re-init chart when switching to usage tab
+// Load data when switching to usage tab
 watch(activeSection, (val) => {
   if (val === 'usage') {
-    nextTick(() => initChart())
+    // Use setTimeout to ensure DOM is rendered after tab switch
+    setTimeout(() => initChart(), 100)
   }
 })
 
@@ -181,5 +209,5 @@ const showPromptDetail = (row: any) => {
   promptDetailVisible.value = true
 }
 
-onMounted(() => { loadLogs(); initChart(); loadPromptLogs() })
+onMounted(() => { loadLogs(); loadPromptLogs() })
 </script>

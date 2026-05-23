@@ -134,8 +134,14 @@ public class LlmRouteService {
                 org.springframework.web.reactive.function.client.WebClient.builder()
                         .clientConnector(new ThinkingDisabledConnector());
 
+        org.springframework.http.client.SimpleClientHttpRequestFactory deepSeekRequestFactory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        deepSeekRequestFactory.setConnectTimeout(java.time.Duration.ofSeconds(10));
+        deepSeekRequestFactory.setReadTimeout(java.time.Duration.ofSeconds(300));
+
         org.springframework.web.client.RestClient.Builder restClientBuilder =
-                org.springframework.web.client.RestClient.builder();
+                org.springframework.web.client.RestClient.builder()
+                        .requestFactory(deepSeekRequestFactory);
 
         DeepSeekApi deepSeekApi = DeepSeekApi.builder()
                 .baseUrl(baseUrl)
@@ -185,7 +191,7 @@ public class LlmRouteService {
         org.springframework.http.client.SimpleClientHttpRequestFactory requestFactory =
                 new org.springframework.http.client.SimpleClientHttpRequestFactory();
         requestFactory.setConnectTimeout(java.time.Duration.ofSeconds(10));
-        requestFactory.setReadTimeout(java.time.Duration.ofSeconds(60));
+        requestFactory.setReadTimeout(java.time.Duration.ofSeconds(300));
 
         OpenAiApi api = OpenAiApi.builder()
                 .baseUrl(baseUrl)
@@ -215,9 +221,16 @@ public class LlmRouteService {
 
     private ChatClient createOllamaCompatible(LlmProvider provider, LlmModel model,
                                                Map<String, Object> params) {
+        org.springframework.http.client.SimpleClientHttpRequestFactory ollamaRequestFactory =
+                new org.springframework.http.client.SimpleClientHttpRequestFactory();
+        ollamaRequestFactory.setConnectTimeout(java.time.Duration.ofSeconds(10));
+        ollamaRequestFactory.setReadTimeout(java.time.Duration.ofSeconds(300));
+
         OpenAiApi api = OpenAiApi.builder()
                 .baseUrl(provider.getApiBase() + "/v1")
                 .apiKey("ollama")
+                .restClientBuilder(org.springframework.web.client.RestClient.builder()
+                        .requestFactory(ollamaRequestFactory))
                 .build();
 
         OpenAiChatOptions.Builder optionsBuilder = OpenAiChatOptions.builder()
