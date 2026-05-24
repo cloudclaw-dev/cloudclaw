@@ -9,6 +9,7 @@ import run.cloudclaw.agent.tools.MemoryTools;
 import run.cloudclaw.agent.prompt.PromptAssembler;
 import run.cloudclaw.agent.prompt.PromptLogService;
 import run.cloudclaw.agent.engine.AgentTransferService.ResolvedAgent;
+import run.cloudclaw.memory.service.TokenEstimator;
 import run.cloudclaw.llm.service.LlmRouteService;
 import run.cloudclaw.mcp.repository.McpServerRepository;
 import run.cloudclaw.skill.service.SkillService;
@@ -50,6 +51,7 @@ public class WorkflowChatHelper {
     private final PromptAssembler promptAssembler;
 
     private final PromptLogService promptLogService;
+    private final TokenEstimator tokenEstimator;
 
     /**
      * Log context for workflow node prompt logging.
@@ -320,20 +322,7 @@ public class WorkflowChatHelper {
     }
 
     protected int estimateTokens(String text) {
-        if (text == null) return 0;
-        int cjk = 0, ascii = 0;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.HIRAGANA
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.KATAKANA) {
-                cjk++;
-            } else {
-                ascii++;
-            }
-        }
-        return cjk + (ascii / 4) + 1;
+        return tokenEstimator.estimateTokens(text);
     }
 
     private McpSyncClient createMcpClient(McpServer server) {

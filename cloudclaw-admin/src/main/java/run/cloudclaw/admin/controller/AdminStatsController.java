@@ -136,7 +136,9 @@ public class AdminStatsController {
         List<Object[]> dailyAgg = sessionRepository.countByDateRange(aggStart, aggEnd);
         DateTimeFormatter dateTimeDayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
         for (Object[] row : dailyAgg) {
-            String day = ((java.sql.Date) row[0]).toLocalDate().format(dateTimeDayFmt);
+            String day = row[0].toString();
+            if (day.length() > 10) day = day.substring(0, 10); // Handle full datetime strings
+            day = LocalDate.parse(day, DateTimeFormatter.ISO_LOCAL_DATE).format(dateTimeDayFmt);
             Number count = (Number) row[1];
             dailyCount.merge(day, count.intValue(), Integer::sum);
         }

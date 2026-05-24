@@ -5,7 +5,6 @@ import run.cloudclaw.common.dto.PageResult;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.dto.SessionCreateRequest;
 import run.cloudclaw.common.model.Session;
-import run.cloudclaw.common.repository.SessionItemRepository;
 import run.cloudclaw.session.service.SessionService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -33,7 +32,6 @@ import org.springframework.web.bind.annotation.RestController;
 public class SessionController {
 
     private final SessionService sessionService;
-    private final SessionItemRepository sessionItemRepository;
 
     /**
      * Create a new chat session.
@@ -76,9 +74,6 @@ public class SessionController {
     @DeleteMapping("/{id}")
     public Result<Void> deleteSession(@AuthUser String userId, @PathVariable String id) {
         log.info("User [{}] deleting session [{}]", userId, id);
-        // Delete session context items for this session
-        sessionItemRepository.deleteBySessionId(id);
-        log.debug("Deleted session context items for session {}", id);
         sessionService.deleteSession(userId, id);
         return Result.ok();
     }

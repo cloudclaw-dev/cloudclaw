@@ -30,6 +30,7 @@ class SessionServiceTest {
 
     @Mock private SessionRepository sessionRepository;
     @Mock private MessageRepository messageRepository;
+    @Mock private run.cloudclaw.common.repository.SessionItemRepository sessionItemRepository;
     @Mock private SessionCache sessionCache;
     @Mock private ApplicationEventPublisher eventPublisher;
 
@@ -37,7 +38,7 @@ class SessionServiceTest {
 
     @BeforeEach
     void setUp() {
-        service = new SessionService(sessionRepository, messageRepository, sessionCache, eventPublisher);
+        service = new SessionService(sessionRepository, messageRepository, sessionItemRepository, sessionCache, eventPublisher);
     }
 
     @Test

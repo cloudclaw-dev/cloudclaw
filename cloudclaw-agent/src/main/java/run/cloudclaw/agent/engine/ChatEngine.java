@@ -85,6 +85,7 @@ public class ChatEngine {
     private final SandboxInfoTool sandboxInfoTool;
     private final AgentTransferService agentTransferService;
     private final WorkflowEngine workflowEngine;
+    private final run.cloudclaw.memory.service.TokenEstimator tokenEstimator;
 
     public ChatEngine(LlmRouteService llmRouteService,
                       SessionService sessionService,
@@ -104,7 +105,8 @@ public class ChatEngine {
                       SandboxFileTool sandboxFileTool,
                       SandboxInfoTool sandboxInfoTool,
                       AgentTransferService agentTransferService,
-                      WorkflowEngine workflowEngine) {
+                      WorkflowEngine workflowEngine,
+                      run.cloudclaw.memory.service.TokenEstimator tokenEstimator) {
         this.llmRouteService = llmRouteService;
         this.sessionService = sessionService;
         this.agentConfigService = agentConfigService;
@@ -124,6 +126,7 @@ public class ChatEngine {
         this.sandboxInfoTool = sandboxInfoTool;
         this.agentTransferService = agentTransferService;
         this.workflowEngine = workflowEngine;
+        this.tokenEstimator = tokenEstimator;
     }
 
     /**
@@ -259,15 +262,7 @@ public class ChatEngine {
         toolCallbacks.addAll(transferTools);
 
         // 8. Build Spring AI messages
-        List<org.springframework.ai.chat.messages.Message> aiMessages = new ArrayList<>();
-        for (Message msg : history) {
-            switch (msg.getRole()) {
-                case "user" -> aiMessages.add(new UserMessage(msg.getContent()));
-                case "assistant" -> aiMessages.add(new AssistantMessage(msg.getContent()));
-                case "system", "summary" -> aiMessages.add(new SystemMessage(msg.getContent()));
-                default -> log.warn("Unknown message role: {}, skipping", msg.getRole());
-            }
-        }
+        List<org.springframework.ai.chat.messages.Message> aiMessages = toAiMessages(history);
 
         String effectiveSystemPrompt = systemPrompt;
 
@@ -344,7 +339,9 @@ public class ChatEngine {
         Sinks.Many<ChatChunk> sink = Sinks.many().multicast().onBackpressureBuffer(256);
         StringBuilder fullResponse = new StringBuilder();
 
-        // Track transfer tool results
+        // Track transfer tool results via returnDirect mechanism
+        final java.util.concurrent.atomic.AtomicReference<AgentTransferService.TransferInfo> transferRef =
+                new java.util.concurrent.atomic.AtomicReference<>(null);
         final String finalActivePath = activePath;
         final String finalEffectiveSystemPrompt = effectiveSystemPrompt;
 
@@ -370,6 +367,21 @@ public class ChatEngine {
                             }
 
                             var output = chatResponse.getResult().getOutput();
+
+                            // Detect returnDirect transfer: tool result bypasses LLM
+                            try {
+                                var genMetadata = chatResponse.getResult().getMetadata();
+                                if (genMetadata != null && "returnDirect".equals(genMetadata.getFinishReason())) {
+                                    Object toolNameObj = genMetadata.get("toolName");
+                                    if (toolNameObj instanceof String tName && tName.startsWith("transfer_")) {
+                                        String content = output.getText();
+                                        if (content != null) {
+                                            transferRef.set(agentTransferService.parseTransferJson(content));
+                                        }
+                                        return ChatChunk.text("");
+                                    }
+                                }
+                            } catch (Exception ignored) {}
 
                             // Tool call chunk
                             if (output.hasToolCalls()) {
@@ -414,9 +426,8 @@ public class ChatEngine {
                             sink.tryEmitError(e);
                         })
                         .doOnComplete(() -> {
-                            // Check for transfer in the response
-                            String responseText = fullResponse.toString();
-                            TransferInfo transferInfo = detectTransfer(responseText);
+                            // Detect transfer via returnDirect mechanism (no text scanning)
+                            TransferInfo transferInfo = transferRef.get();
 
                             if (transferInfo != null) {
                                 log.info("Transfer detected: {} → {} (reason: {})", finalActivePath, transferInfo.getTargetPath(), transferInfo.getReason());
@@ -445,23 +456,25 @@ public class ChatEngine {
                                 // Re-invoke LLM with new agent configuration
                                 try {
                                     invokeAgentTransfer(sink, userId, sessionId, userMessage, config,
-                                            transferInfo.getTargetPath(), history);
+                                            transferInfo.getTargetPath(), history,
+                                            () -> finishChat(sink, sessionId, userId, config, userMessage, history,
+                                                    finalEffectiveSystemPrompt, fullResponse, chatClient,
+                                                    effectiveModelId, agentIdStr, createdMcpClients, startTime));
                                 } catch (Exception e) {
                                     log.error("Failed to invoke agent transfer: {}", e.getMessage(), e);
+                                    finishChat(sink, sessionId, userId, config, userMessage, history,
+                                            finalEffectiveSystemPrompt, fullResponse, chatClient,
+                                            effectiveModelId, agentIdStr, createdMcpClients, startTime);
                                 }
-
-                                // Save context stats and signal done
-                                finishChat(sink, sessionId, userId, config, userMessage, history,
-                                        finalEffectiveSystemPrompt, fullResponse, chatClient,
-                                        effectiveModelId, agentIdStr, createdMcpClients, startTime);
 
                             } else {
                                 // Normal completion — save assistant message
-                                if (!responseText.isBlank()) {
+                                String normalText = fullResponse.toString();
+                                if (!normalText.isBlank()) {
                                     Message assistantMsg = new Message();
                                     assistantMsg.setSessionId(UUID.fromString(sessionId));
                                     assistantMsg.setRole("assistant");
-                                    assistantMsg.setContent(responseText);
+                                    assistantMsg.setContent(normalText);
                                     assistantMsg.setAgentName("root".equals(finalActivePath) ? null : activeAgent.getAgentName());
                                     sessionService.saveMessage(assistantMsg);
                                 }
@@ -487,29 +500,13 @@ public class ChatEngine {
     }
 
     /**
-     * Detect if a response contains a transfer marker from tool call results.
-     * The transfer tool returns "TRANSFER:targetName:targetPath:reason" which the
-     * ToolCallAdvisor passes through the LLM, and the LLM may include it in output.
-     * TODO: Consider intercepting tool call results directly instead of text scanning.
-     */
-    private TransferInfo detectTransfer(String response) {
-        if (response == null) return null;
-        // Look for transfer markers in the response
-        int idx = response.indexOf("TRANSFER:");
-        if (idx >= 0) {
-            String marker = response.substring(idx);
-            return agentTransferService.parseTransferResult(marker);
-        }
-        return null;
-    }
-
-    /**
+     * 
      * Invoke LLM with the target sub-agent's configuration after a transfer.
      * The response streams into the same sink.
      */
     private void invokeAgentTransfer(Sinks.Many<ChatChunk> sink, String userId, String sessionId,
                                       String userMessage, AgentConfig rootConfig,
-                                      String targetPath, List<Message> history) {
+                                      String targetPath, List<Message> history, Runnable onComplete) {
         ResolvedAgent targetAgent = agentTransferService.resolveAgent(rootConfig, targetPath);
         String targetModelId = targetAgent.getModelId();
         ChatClient targetChatClient = llmRouteService.getChatClient(targetModelId);
@@ -535,15 +532,7 @@ public class ChatEngine {
         }
 
         // Build AI messages (include transfer system messages from history)
-        List<org.springframework.ai.chat.messages.Message> aiMessages = new ArrayList<>();
-        for (Message msg : history) {
-            switch (msg.getRole()) {
-                case "user" -> aiMessages.add(new UserMessage(msg.getContent()));
-                case "assistant" -> aiMessages.add(new AssistantMessage(msg.getContent()));
-                case "system", "summary" -> aiMessages.add(new SystemMessage(msg.getContent()));
-                default -> log.warn("Unknown message role: {}, skipping", msg.getRole());
-            }
-        }
+        List<org.springframework.ai.chat.messages.Message> aiMessages = toAiMessages(history);
 
         int maxToolResultChars = rootConfig.getMaxToolResultChars() != null ? rootConfig.getMaxToolResultChars() : 3000;
         List<ToolCallback> truncatedTargetTools = targetTools.stream()
@@ -605,6 +594,14 @@ public class ChatEngine {
                     }
                     closeMcpClients(targetMcpClients);
                     log.info("Transfer agent response saved: path={}, len={}", targetPath, resp.length());
+                    // Signal completion after transfer response is fully saved
+                    if (onComplete != null) {
+                        try {
+                            onComplete.run();
+                        } catch (Exception e) {
+                            log.warn("Transfer completion callback failed: {}", e.getMessage());
+                        }
+                    }
                 })
                 .subscribe();
     }
@@ -676,6 +673,22 @@ public class ChatEngine {
                 .contextStats(stats)
                 .build());
         sink.tryEmitComplete();
+    }
+
+    /**
+     * Convert domain messages to Spring AI messages.
+     */
+    private List<org.springframework.ai.chat.messages.Message> toAiMessages(List<Message> messages) {
+        List<org.springframework.ai.chat.messages.Message> aiMessages = new ArrayList<>();
+        for (Message msg : messages) {
+            switch (msg.getRole()) {
+                case "user" -> aiMessages.add(new UserMessage(msg.getContent()));
+                case "assistant" -> aiMessages.add(new AssistantMessage(msg.getContent()));
+                case "system", "summary" -> aiMessages.add(new SystemMessage(msg.getContent()));
+                default -> log.warn("Unknown message role: {}, skipping", msg.getRole());
+            }
+        }
+        return aiMessages;
     }
 
     /**
@@ -876,27 +889,8 @@ public class ChatEngine {
         }
     }
 
-    /**
-     * Rough token estimation based on character analysis.
-     * CJK characters count as ~1 token each, ASCII as ~0.25 tokens each.
-     * TODO: Replace with tiktoken or a proper tokenizer for accurate counts.
-     * This is intentionally conservative and may over/under-estimate.
-     */
     private int estimateTokens(String text) {
-        if (text == null) return 0;
-        int cjk = 0, ascii = 0;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.HIRAGANA
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.KATAKANA) {
-                cjk++;
-            } else {
-                ascii++;
-            }
-        }
-        return cjk + (ascii / 4) + 1;
+        return tokenEstimator.estimateTokens(text);
     }
 
     /**
@@ -1036,15 +1030,7 @@ public class ChatEngine {
             List<ToolCallback> transferTools = agentTransferService.buildTransferTools(config, activePath);
             toolCallbacks.addAll(transferTools);
 
-            List<org.springframework.ai.chat.messages.Message> aiMessages = new ArrayList<>();
-            for (Message msg : history) {
-                switch (msg.getRole()) {
-                    case "user" -> aiMessages.add(new UserMessage(msg.getContent()));
-                    case "assistant" -> aiMessages.add(new AssistantMessage(msg.getContent()));
-                    case "system", "summary" -> aiMessages.add(new SystemMessage(msg.getContent()));
-                    default -> log.warn("Unknown message role: {}, skipping", msg.getRole());
-                }
-            }
+            List<org.springframework.ai.chat.messages.Message> aiMessages = toAiMessages(history);
 
             // Append memory guide
             String effectiveSystemPrompt = systemPrompt;
@@ -1099,8 +1085,8 @@ public class ChatEngine {
             String responseText = requestSpec.call().content();
             if (responseText == null) responseText = "";
 
-            // Handle transfer in async mode
-            TransferInfo transferInfo = detectTransfer(responseText);
+            // Handle transfer via returnDirect mechanism
+            TransferInfo transferInfo = agentTransferService.parseTransferJson(responseText);
             if (transferInfo != null) {
                 log.info("Transfer detected in async mode: {} → {}", activePath, transferInfo.getTargetPath());
 

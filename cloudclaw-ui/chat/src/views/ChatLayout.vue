@@ -550,7 +550,21 @@ const renderMarkdown = (content: string): string => {
 }
 
 // ===== Computed =====
-const isAdmin = computed(() => localStorage.getItem('user_role') === 'ADMIN')
+function parseJwtRole(token: string): string | null {
+  try {
+    const base64Url = token.split('.')[1]
+    const base64 = base64Url.replace(/-/g, '+').replace(/_/g, '/')
+    const jsonPayload = decodeURIComponent(atob(base64).split('').map(c => '%' + ('00' + c.charCodeAt(0).toString(16)).slice(-2)).join(''))
+    const payload = JSON.parse(jsonPayload)
+    return payload.role || null
+  } catch { return null }
+}
+
+const isAdmin = computed(() => {
+  const token = localStorage.getItem('access_token')
+  if (!token) return false
+  return parseJwtRole(token) === 'admin'
+})
 const userName = computed(() => localStorage.getItem('user_name') || 'Admin')
 
 const showUserMenu = ref(false)

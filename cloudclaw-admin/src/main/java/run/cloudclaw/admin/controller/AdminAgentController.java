@@ -30,6 +30,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
@@ -89,22 +90,26 @@ public class AdminAgentController {
 
         // Bind MCP servers
         if (request.getMcpServerIds() != null) {
+            List<AgentMcpServer> mcpBindings = new ArrayList<>();
             for (String serverId : request.getMcpServerIds()) {
                 AgentMcpServer binding = new AgentMcpServer();
                 binding.setAgentId(saved.getId());
                 binding.setServerId(UUID.fromString(serverId));
-                agentMcpServerRepository.save(binding);
+                mcpBindings.add(binding);
             }
+            agentMcpServerRepository.saveAll(mcpBindings);
         }
 
         // Bind skills
         if (request.getSkillIds() != null) {
+            List<AgentSkill> skillBindings = new ArrayList<>();
             for (String skillId : request.getSkillIds()) {
                 AgentSkill binding = new AgentSkill();
                 binding.setAgentId(saved.getId());
                 binding.setSkillId(UUID.fromString(skillId));
-                agentSkillRepository.save(binding);
+                skillBindings.add(binding);
             }
+            agentSkillRepository.saveAll(skillBindings);
         }
 
         log.info("Agent created successfully with id: {}", saved.getId());
@@ -187,12 +192,14 @@ public class AdminAgentController {
             List<AgentMcpServer> existingBindings = agentMcpServerRepository.findByAgentId(agentId);
             agentMcpServerRepository.deleteAll(existingBindings);
 
+            List<AgentMcpServer> mcpBindings = new ArrayList<>();
             for (String serverId : request.getMcpServerIds()) {
                 AgentMcpServer binding = new AgentMcpServer();
                 binding.setAgentId(agentId);
                 binding.setServerId(UUID.fromString(serverId));
-                agentMcpServerRepository.save(binding);
+                mcpBindings.add(binding);
             }
+            agentMcpServerRepository.saveAll(mcpBindings);
         }
 
         // Update skill bindings if provided
@@ -200,12 +207,14 @@ public class AdminAgentController {
             List<AgentSkill> existingBindings = agentSkillRepository.findByAgentId(agentId);
             agentSkillRepository.deleteAll(existingBindings);
 
+            List<AgentSkill> skillBindings = new ArrayList<>();
             for (String skillId : request.getSkillIds()) {
                 AgentSkill binding = new AgentSkill();
                 binding.setAgentId(agentId);
                 binding.setSkillId(UUID.fromString(skillId));
-                agentSkillRepository.save(binding);
+                skillBindings.add(binding);
             }
+            agentSkillRepository.saveAll(skillBindings);
         }
 
         log.info("Agent updated successfully: {}", id);

@@ -70,18 +70,16 @@ public class SandboxFactory {
         return builder.build();
     }
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper OBJECT_MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
     /** Extract first image from JSON like {"python":"python:3.11-slim","javascript":"node:20-slim"} */
     private static String extractDefaultImage(String imagesJson) {
         try {
-            String cleaned = imagesJson.trim();
-            if (cleaned.startsWith("{")) {
-                // Simple parse: find first value
-                String[] pairs = cleaned.substring(1, cleaned.length() - 1).split(",");
-                for (String pair : pairs) {
-                    String[] kv = pair.split(":");
-                    if (kv.length >= 2) {
-                        return kv[1].trim().replace("\"", "");
-                    }
+            com.fasterxml.jackson.databind.JsonNode node = OBJECT_MAPPER.readTree(imagesJson.trim());
+            if (node.isObject()) {
+                var field = node.fields();
+                if (field.hasNext()) {
+                    return field.next().getValue().asText();
                 }
             }
         } catch (Exception e) {
