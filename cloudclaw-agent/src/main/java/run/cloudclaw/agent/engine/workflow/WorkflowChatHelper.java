@@ -2,17 +2,12 @@ package run.cloudclaw.agent.engine.workflow;
 
 import run.cloudclaw.common.dto.AgentConfig;
 import run.cloudclaw.common.dto.ChatChunk;
-import run.cloudclaw.common.model.McpServer;
-import run.cloudclaw.common.model.Skill;
-import run.cloudclaw.agent.tools.SkillTools;
-import run.cloudclaw.agent.tools.MemoryTools;
+import run.cloudclaw.agent.engine.AgentTransferService.ResolvedAgent;
+import run.cloudclaw.agent.engine.ToolResolutionService;
 import run.cloudclaw.agent.prompt.PromptAssembler;
 import run.cloudclaw.agent.prompt.PromptLogService;
-import run.cloudclaw.agent.engine.AgentTransferService.ResolvedAgent;
 import run.cloudclaw.memory.service.TokenEstimator;
 import run.cloudclaw.llm.service.LlmRouteService;
-import run.cloudclaw.mcp.repository.McpServerRepository;
-import run.cloudclaw.skill.service.SkillService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
@@ -20,8 +15,6 @@ import org.springframework.ai.chat.client.advisor.ToolCallAdvisor;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.method.MethodToolCallbackProvider;
-import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.stereotype.Component;
 
@@ -29,7 +22,6 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.format.DateTimeFormatter;
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.Locale;
 import java.util.UUID;
@@ -44,12 +36,8 @@ import java.util.UUID;
 public class WorkflowChatHelper {
 
     private final LlmRouteService llmRouteService;
-    private final McpServerRepository mcpServerRepository;
-    private final SkillService skillService;
-    private final SkillTools skillTools;
-    private final MemoryTools memoryTools;
+    private final ToolResolutionService toolResolutionService;
     private final PromptAssembler promptAssembler;
-
     private final PromptLogService promptLogService;
     private final TokenEstimator tokenEstimator;
 
@@ -172,7 +160,7 @@ public class WorkflowChatHelper {
             );
             ToolCallAdvisor toolCallAdvisor = ToolCallAdvisor.builder()
                     .toolCallingManager(toolCallingManager)
-                    .streamToolCallResponses(true)
+                    .streamToolCallResponses(false)
                     .build();
             spec.toolCallbacks(toolCallbacks).advisors(toolCallAdvisor);
         }
@@ -182,93 +170,27 @@ public class WorkflowChatHelper {
 
     /**
      * Resolve tool callbacks for a given config. Returns callbacks and populates createdMcpClients.
+     * Delegates to {@link ToolResolutionService}.
      */
     public List<ToolCallback> resolveToolCallbacks(AgentConfig config, List<McpSyncClient> createdMcpClients) {
-        List<ToolCallback> callbacks = new ArrayList<>();
-
-        // Memory tools
-        if (!Boolean.FALSE.equals(config.getEnableMemoryTools())) {
-            try {
-                MethodToolCallbackProvider memoryProvider = MethodToolCallbackProvider.builder()
-                        .toolObjects(memoryTools)
-                        .build();
-                callbacks.addAll(Arrays.asList(memoryProvider.getToolCallbacks()));
-            } catch (Exception e) {
-                log.warn("Failed to resolve memory tools: {}", e.getMessage());
-            }
-        }
-
-        // Skill tools
-        try {
-            List<Skill> agentSkills = skillService.getSkillsForAgent(config.getAgentId());
-            if (!agentSkills.isEmpty()) {
-                MethodToolCallbackProvider provider = MethodToolCallbackProvider.builder()
-                        .toolObjects(skillTools)
-                        .build();
-                callbacks.addAll(Arrays.asList(provider.getToolCallbacks()));
-            }
-        } catch (Exception e) {
-            log.warn("Failed to resolve skill tools: {}", e.getMessage());
-        }
-
-        // MCP Server tools
-        try {
-            List<String> mcpServerIds = config.getMcpServerIds();
-            if (mcpServerIds != null && !mcpServerIds.isEmpty()) {
-                List<McpSyncClient> mcpClients = new ArrayList<>();
-                for (String serverId : mcpServerIds) {
-                    try {
-                        McpServer server = mcpServerRepository.findById(UUID.fromString(serverId)).orElse(null);
-                        if (server == null || !Boolean.TRUE.equals(server.getEnabled())) continue;
-                        McpSyncClient mcpClient = createMcpClient(server);
-                        if (mcpClient != null) mcpClients.add(mcpClient);
-                    } catch (Exception e) {
-                        log.warn("Failed to connect to MCP Server {}: {}", serverId, e.getMessage());
-                    }
-                }
-                if (!mcpClients.isEmpty()) {
-                    SyncMcpToolCallbackProvider mcpProvider = SyncMcpToolCallbackProvider.builder()
-                            .mcpClients(mcpClients).build();
-                    callbacks.addAll(Arrays.asList(mcpProvider.getToolCallbacks()));
-                }
-                createdMcpClients.addAll(mcpClients);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to resolve MCP tools: {}", e.getMessage());
-        }
-
-        return callbacks;
+        return toolResolutionService.resolveToolCallbacks(config, createdMcpClients);
     }
 
     /**
      * Build an AgentConfig for a resolved node agent, inheriting from parent.
+     * Delegates to {@link ToolResolutionService#buildSubAgentConfig}.
      */
     public AgentConfig buildNodeConfig(AgentConfig parent, ResolvedNodeAgent node) {
-        AgentConfig c = new AgentConfig();
-        c.setAgentId(parent.getAgentId());
-        c.setName(node.getDisplayName());
-        c.setSystemPrompt(node.getSystemPrompt());
-        c.setModelId(node.getModelId());
-        c.setTemperature(parent.getTemperature());
-        c.setMaxTokens(parent.getMaxTokens());
-        c.setMaxToolCalls(parent.getMaxToolCalls());
-        c.setEnabled(parent.getEnabled());
-        c.setMcpServerIds(node.getMcpServerIds());
-        c.setSkillIds(node.getSkillIds());
-        c.setContextWindow(parent.getContextWindow());
-        c.setCompressionThreshold(parent.getCompressionThreshold());
-        c.setCompressionKeepRounds(parent.getCompressionKeepRounds());
-        c.setContextUsageThreshold(parent.getContextUsageThreshold());
-        c.setMaxToolResultChars(parent.getMaxToolResultChars());
-        c.setEnableMemoryTools(parent.getEnableMemoryTools());
-        c.setMemoryProfileMaxTokens(parent.getMemoryProfileMaxTokens());
-        c.setMemoryTaskMaxTokens(parent.getMemoryTaskMaxTokens());
-        c.setSandboxEnabled(parent.getSandboxEnabled());
-        c.setSandboxBackend(parent.getSandboxBackend());
-        c.setSandboxProviderId(parent.getSandboxProviderId());
-        c.setSandboxMode(parent.getSandboxMode());
-        c.setSandboxTimeout(parent.getSandboxTimeout());
-        return c;
+        ResolvedAgent resolvedAgent = new ResolvedAgent(
+                node.getName(),
+                node.getDisplayName(),
+                node.getSystemPrompt(),
+                node.getModelId(),
+                node.getMcpServerIds(),
+                node.getSkillIds(),
+                false
+        );
+        return toolResolutionService.buildSubAgentConfig(parent, resolvedAgent);
     }
 
     /**
@@ -323,49 +245,5 @@ public class WorkflowChatHelper {
 
     protected int estimateTokens(String text) {
         return tokenEstimator.estimateTokens(text);
-    }
-
-    private McpSyncClient createMcpClient(McpServer server) {
-        String url = server.getUrl();
-        if (url == null || url.isBlank()) return null;
-
-        String baseUri;
-        String path;
-        try {
-            java.net.URI uri = new java.net.URI(url);
-            String scheme = uri.getScheme() != null ? uri.getScheme() : "http";
-            String host = uri.getHost();
-            int port = uri.getPort();
-            baseUri = port > 0 ? scheme + "://" + host + ":" + port : scheme + "://" + host;
-            String rawPath = uri.getRawPath();
-            String query = uri.getRawQuery();
-            path = (rawPath != null ? rawPath : "") + (query != null ? "?" + query : "");
-            if (path.isEmpty()) path = "/";
-        } catch (java.net.URISyntaxException e) {
-            log.warn("Invalid MCP Server URL: {} - {}", url, e.getMessage());
-            return null;
-        }
-
-        String transportType = server.getTransport() != null ? server.getTransport().toLowerCase() : "sse";
-        io.modelcontextprotocol.spec.McpClientTransport mcpTransport;
-
-        switch (transportType) {
-            case "streamable-http", "streamable_http", "streamable" -> {
-                mcpTransport = io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport.builder(baseUri)
-                        .endpoint(path)
-                        .connectTimeout(java.time.Duration.ofSeconds(10))
-                        .build();
-            }
-            default -> {
-                mcpTransport = io.modelcontextprotocol.client.transport.HttpClientSseClientTransport.builder(baseUri)
-                        .sseEndpoint(path)
-                        .connectTimeout(java.time.Duration.ofSeconds(10))
-                        .build();
-            }
-        }
-
-        return io.modelcontextprotocol.client.McpClient.sync(mcpTransport)
-                .requestTimeout(java.time.Duration.ofSeconds(30))
-                .build();
     }
 }

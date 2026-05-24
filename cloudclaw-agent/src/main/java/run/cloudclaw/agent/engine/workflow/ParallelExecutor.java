@@ -10,12 +10,14 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
 import java.util.stream.Collectors;
 
@@ -28,11 +30,19 @@ import java.util.stream.Collectors;
  */
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class ParallelExecutor {
 
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
+    private final Executor workflowExecutor;
+
+    public ParallelExecutor(WorkflowNodeResolver nodeResolver,
+                           WorkflowChatHelper chatHelper,
+                           @Qualifier("workflowExecutor") Executor workflowExecutor) {
+        this.nodeResolver = nodeResolver;
+        this.chatHelper = chatHelper;
+        this.workflowExecutor = workflowExecutor;
+    }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
                                     String userMessage, AgentConfig config, WorkflowDef workflow) {
@@ -51,7 +61,7 @@ public class ParallelExecutor {
                 ? parallelConfig.getMergeStrategy() : "concat";
         int maxConcurrent = parallelConfig != null ? parallelConfig.getMaxConcurrent() : 5;
 
-        Thread parallelThread = new Thread(() -> {
+        Runnable parallelThread = () -> {
             try {
                 // Emit parallel_start event
                 List<String> nodeNames = resolvedNodes.stream()
@@ -109,7 +119,7 @@ public class ParallelExecutor {
                                 try { client.close(); } catch (Exception ignored) {}
                             }
                         }
-                    });
+                    }, workflowExecutor);
                     futures.add(future);
                 }
 
@@ -143,11 +153,9 @@ public class ParallelExecutor {
                 log.error("Parallel execution error: {}", e.getMessage(), e);
                 sink.tryEmitError(e);
             }
-        });
+        };
 
-        parallelThread.setName("parallel-" + sessionId);
-        parallelThread.setDaemon(true);
-        parallelThread.start();
+        workflowExecutor.execute(parallelThread);
 
         return sink.asFlux();
     }

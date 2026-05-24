@@ -6,28 +6,21 @@ import run.cloudclaw.agent.engine.AgentTransferService.ResolvedAgent;
 import run.cloudclaw.agent.engine.AgentTransferService.TransferInfo;
 import run.cloudclaw.agent.engine.AgentTransferService.TransferToolCallback;
 import run.cloudclaw.agent.engine.workflow.WorkflowEngine;
-import run.cloudclaw.agent.tools.SkillTools;
-import run.cloudclaw.agent.tools.MemoryTools;
-import run.cloudclaw.sandbox.tool.SandboxExecuteTool;
-import run.cloudclaw.sandbox.tool.SandboxFileTool;
-import run.cloudclaw.sandbox.tool.SandboxInfoTool;
-import run.cloudclaw.sandbox.core.SandboxBackend;
 import run.cloudclaw.sandbox.core.SandboxContext;
+import run.cloudclaw.sandbox.core.SandboxBackend;
 import run.cloudclaw.sandbox.core.SandboxMode;
+import run.cloudclaw.agent.tools.MemoryTools;
 import run.cloudclaw.agent.prompt.PromptAssembler;
 import run.cloudclaw.common.dto.AsyncChatResult;
 import run.cloudclaw.common.dto.ChatChunk;
 import run.cloudclaw.common.exception.ErrorCode;
-import run.cloudclaw.common.model.McpServer;
 import run.cloudclaw.common.model.Message;
 import run.cloudclaw.common.model.Session;
-import run.cloudclaw.common.model.Skill;
 import run.cloudclaw.llm.service.LlmRouteService;
 import run.cloudclaw.llm.service.LlmUsageService;
-import run.cloudclaw.mcp.repository.McpServerRepository;
 import run.cloudclaw.agent.engine.SessionCompressor;
+import run.cloudclaw.agent.engine.ContextCompressor;
 import run.cloudclaw.session.service.SessionService;
-import run.cloudclaw.skill.service.SkillService;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -40,8 +33,6 @@ import org.springframework.ai.chat.messages.UserMessage;
 import org.springframework.ai.model.tool.DefaultToolCallingManager;
 import org.springframework.ai.model.tool.ToolCallingManager;
 import org.springframework.ai.tool.ToolCallback;
-import org.springframework.ai.tool.method.MethodToolCallbackProvider;
-import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.beans.factory.annotation.Qualifier;
 import org.springframework.stereotype.Service;
@@ -49,7 +40,6 @@ import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.List;
 import java.util.UUID;
 
@@ -71,18 +61,12 @@ public class ChatEngine {
     private final AgentConfigService agentConfigService;
     private final PromptAssembler promptAssembler;
     private final LlmUsageService llmUsageService;
-    private final SkillService skillService;
-    private final SkillTools skillTools;
-    private final McpServerRepository mcpServerRepository;
-    private final MemoryTools memoryTools;
+    private final ToolResolutionService toolResolutionService;
     private final SessionCompressor sessionCompressor;
     private final ContextCompressor contextCompressor;
     private final Executor chatExecutor;
     private final run.cloudclaw.agent.prompt.PromptLogService promptLogService;
     private final run.cloudclaw.memory.injector.MemoryInjector memoryInjector;
-    private final SandboxExecuteTool sandboxExecuteTool;
-    private final SandboxFileTool sandboxFileTool;
-    private final SandboxInfoTool sandboxInfoTool;
     private final AgentTransferService agentTransferService;
     private final WorkflowEngine workflowEngine;
     private final run.cloudclaw.memory.service.TokenEstimator tokenEstimator;
@@ -92,18 +76,12 @@ public class ChatEngine {
                       AgentConfigService agentConfigService,
                       PromptAssembler promptAssembler,
                       LlmUsageService llmUsageService,
-                      SkillService skillService,
-                      SkillTools skillTools,
-                      McpServerRepository mcpServerRepository,
-                      MemoryTools memoryTools,
+                      ToolResolutionService toolResolutionService,
                       SessionCompressor sessionCompressor,
                       ContextCompressor contextCompressor,
                       @Qualifier("chatExecutor") Executor chatExecutor,
                       run.cloudclaw.agent.prompt.PromptLogService promptLogService,
                       run.cloudclaw.memory.injector.MemoryInjector memoryInjector,
-                      SandboxExecuteTool sandboxExecuteTool,
-                      SandboxFileTool sandboxFileTool,
-                      SandboxInfoTool sandboxInfoTool,
                       AgentTransferService agentTransferService,
                       WorkflowEngine workflowEngine,
                       run.cloudclaw.memory.service.TokenEstimator tokenEstimator) {
@@ -112,18 +90,12 @@ public class ChatEngine {
         this.agentConfigService = agentConfigService;
         this.promptAssembler = promptAssembler;
         this.llmUsageService = llmUsageService;
-        this.skillService = skillService;
-        this.skillTools = skillTools;
-        this.mcpServerRepository = mcpServerRepository;
-        this.memoryTools = memoryTools;
+        this.toolResolutionService = toolResolutionService;
         this.sessionCompressor = sessionCompressor;
         this.contextCompressor = contextCompressor;
         this.chatExecutor = chatExecutor;
         this.promptLogService = promptLogService;
         this.memoryInjector = memoryInjector;
-        this.sandboxExecuteTool = sandboxExecuteTool;
-        this.sandboxFileTool = sandboxFileTool;
-        this.sandboxInfoTool = sandboxInfoTool;
         this.agentTransferService = agentTransferService;
         this.workflowEngine = workflowEngine;
         this.tokenEstimator = tokenEstimator;
@@ -254,8 +226,8 @@ public class ChatEngine {
         // 7. Build tool callbacks from providers that have @Tool methods
         List<McpSyncClient> createdMcpClients = new ArrayList<>();
         // Use sub-agent's mcpServerIds and skillIds if in sub-agent
-        AgentConfig effectiveConfig = activeAgent.isRoot() ? config : buildSubAgentConfig(config, activeAgent);
-        List<ToolCallback> toolCallbacks = resolveToolCallbacks(effectiveConfig, createdMcpClients);
+        AgentConfig effectiveConfig = activeAgent.isRoot() ? config : toolResolutionService.buildSubAgentConfig(config, activeAgent);
+        List<ToolCallback> toolCallbacks = toolResolutionService.resolveToolCallbacks(effectiveConfig, createdMcpClients);
 
         // 7.5 Add transfer tools
         List<ToolCallback> transferTools = agentTransferService.buildTransferTools(config, activePath);
@@ -268,28 +240,7 @@ public class ChatEngine {
 
         // 8.5 Append memory tool usage guide if memory tools are enabled
         if (!Boolean.FALSE.equals(config.getEnableMemoryTools())) {
-            String memoryGuide = "\n\n## Memory\n\n" +
-                    "You have persistent memory via 2 tools. Use them proactively — don't wait to be asked.\n\n" +
-                    "Core principle: Save only facts that will still matter in future sessions.\n" +
-                    "The most valuable memory prevents the user from having to repeat themselves.\n\n" +
-                    "Two targets:\n" +
-                    "- memory_profile: Who the user IS — name, role, preferences, habits, corrections.\n" +
-                    "  Persists across all sessions. 1000 token limit.\n" +
-                    "- memory_session: Current task context — goals, progress, agreements, constraints.\n" +
-                    "  This session only. 2000 token limit.\n\n" +
-                    "WHEN TO SAVE (proactive):\n" +
-                    "- User corrects you or says 'remember this' / 'don't do that again'\n" +
-                    "- User shares a preference, habit, or personal detail\n" +
-                    "- User mentions their name, role, timezone, or communication style\n" +
-                    "Priority: User corrections > preferences > personal facts > communication style.\n\n" +
-                    "DO NOT save: common knowledge, completed-work logs, temporary TODO state,\n" +
-                    "or anything that will be stale in 7 days.\n\n" +
-                    "HOW TO WRITE — declarative facts, not instructions:\n" +
-                    "✓ 'User prefers concise responses'  ✗ 'Always respond concisely'\n\n" +
-                    "ACTIONS:\n" +
-                    "- memory_profile: read_all | add | replace | remove\n" +
-                    "- memory_session: read_all | add | replace | remove";
-            effectiveSystemPrompt = systemPrompt + memoryGuide;
+            effectiveSystemPrompt = systemPrompt + PromptAssembler.MEMORY_GUIDE;
         }
 
         // 8.6 Append transfer tool usage hint for sub-agents
@@ -325,7 +276,7 @@ public class ChatEngine {
 
             ToolCallAdvisor toolCallAdvisor = ToolCallAdvisor.builder()
                     .toolCallingManager(toolCallingManager)
-                    .streamToolCallResponses(true)
+                    .streamToolCallResponses(false)
                     .build();
 
             requestSpec.toolCallbacks(truncatedCallbacks)
@@ -391,18 +342,30 @@ public class ChatEngine {
                                     String toolName = tc.name();
                                     String args = tc.arguments() != null ? tc.arguments() : "";
                                     log.debug("Tool call: name={}, args={}", toolName, args);
+                                    if (toolName.startsWith("transfer_")) {
+                                        return ChatChunk.text("");
+                                    }
                                     return ChatChunk.toolCall(toolName, args);
                                 }
                             }
 
-                            // Normal text chunk
+                            // Normal text chunk — filter out leaked transfer JSON
                             String content = output.getText();
+                            if (content != null && content.contains("targetPath") && content.contains("targetName") && content.trim().startsWith("{")) {
+                                fullResponse.append(content);
+                                return ChatChunk.text("");
+                            }
                             if (content != null) {
                                 fullResponse.append(content);
                             }
                             return ChatChunk.text(content != null ? content : "");
                         })
-                        .doOnNext(chunk -> sink.tryEmitNext(chunk))
+                        .doOnNext(chunk -> {
+                            if (chunk.getContent() != null && !chunk.getContent().isEmpty()) {
+                                log.info("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
+                            }
+                            sink.tryEmitNext(chunk);
+                        })
                         .doOnError(e -> {
                             log.error("Chat stream error for session {}: {}", sessionId, e.getMessage());
                             if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException webEx) {
@@ -443,15 +406,10 @@ public class ChatEngine {
                                 // Update active_agent_path
                                 sessionService.updateActiveAgentPath(sessionId, transferInfo.getTargetPath());
 
-                                // Notify frontend
+                                // Notify frontend with handoff event (shows workflow state in top bar)
                                 String displayName = agentTransferService.getDisplayName(config, transferInfo.getTargetPath());
-                                sink.tryEmitNext(ChatChunk.builder()
-                                        .content("")
-                                        .toolCall(false)
-                                        .done(false)
-                                        .type("agent_switched")
-                                        .targetAgent(displayName)
-                                        .build());
+                                String fromName = agentTransferService.getDisplayName(config, finalActivePath);
+                                sink.tryEmitNext(ChatChunk.handoffEvent(fromName, displayName, transferInfo.getReason()));
 
                                 // Re-invoke LLM with new agent configuration
                                 try {
@@ -491,7 +449,7 @@ public class ChatEngine {
                 sendErrorEvent(sink, errorCode, e.getMessage());
                 sink.tryEmitError(e);
             } finally {
-                closeMcpClients(createdMcpClients);
+                toolResolutionService.closeMcpClients(createdMcpClients);
                 SandboxContext.unbindFromThread();
             }
         });
@@ -517,8 +475,8 @@ public class ChatEngine {
 
         // Build tools for target agent
         List<McpSyncClient> targetMcpClients = new ArrayList<>();
-        AgentConfig targetConfig = buildSubAgentConfig(rootConfig, targetAgent);
-        List<ToolCallback> targetTools = resolveToolCallbacks(targetConfig, targetMcpClients);
+        AgentConfig targetConfig = toolResolutionService.buildSubAgentConfig(rootConfig, targetAgent);
+        List<ToolCallback> targetTools = toolResolutionService.resolveToolCallbacks(targetConfig, targetMcpClients);
 
         // Add transfer tools for the target agent
         List<ToolCallback> targetTransferTools = agentTransferService.buildTransferTools(rootConfig, targetPath);
@@ -550,10 +508,14 @@ public class ChatEngine {
                     rootConfig.getMaxToolCalls() != null ? rootConfig.getMaxToolCalls() : 50);
             ToolCallAdvisor tca = ToolCallAdvisor.builder()
                     .toolCallingManager(tcm)
-                    .streamToolCallResponses(true)
+                    .streamToolCallResponses(false)
                     .build();
             targetReq.toolCallbacks(truncatedTargetTools).advisors(tca);
         }
+
+        // Notify frontend with handoff event (shows workflow state in top bar)
+        String targetDisplayName = targetAgent.getDisplayName() != null ? targetAgent.getDisplayName() : targetAgent.getAgentName();
+        sink.tryEmitNext(ChatChunk.handoffEvent(rootConfig.getName(), targetDisplayName, ""));
 
         // Stream target agent response
         StringBuilder targetResponse = new StringBuilder();
@@ -568,14 +530,41 @@ public class ChatEngine {
                         var toolCalls = output.getToolCalls();
                         if (!toolCalls.isEmpty()) {
                             var tc = toolCalls.get(0);
-                            return ChatChunk.toolCall(tc.name(), tc.arguments() != null ? tc.arguments() : "");
+                            String tn = tc.name();
+                            if (tn.startsWith("transfer_")) {
+                                return ChatChunk.text("");
+                            }
+                            return ChatChunk.toolCall(tn, tc.arguments() != null ? tc.arguments() : "");
                         }
                     }
+                    // Detect returnDirect transfer in async flow
+                    try {
+                        var genMetadata = chatResponse.getResult().getMetadata();
+                        if (genMetadata != null && "returnDirect".equals(genMetadata.getFinishReason())) {
+                            Object toolNameObj = genMetadata.get("toolName");
+                            if (toolNameObj instanceof String tName && tName.startsWith("transfer_")) {
+                                String content = output.getText();
+                                if (content != null) targetResponse.append(content);
+                                return ChatChunk.text("");
+                            }
+                        }
+                    } catch (Exception ignored) {}
+
                     String content = output.getText();
+                    // Filter out transfer JSON that leaked as plain text
+                    if (content != null && content.contains("targetPath") && content.contains("targetName") && content.trim().startsWith("{")) {
+                        targetResponse.append(content);
+                        return ChatChunk.text("");
+                    }
                     if (content != null) targetResponse.append(content);
                     return ChatChunk.text(content != null ? content : "");
                 })
-                .doOnNext(chunk -> sink.tryEmitNext(chunk))
+                .doOnNext(chunk -> {
+                            if (chunk.getContent() != null && !chunk.getContent().isEmpty()) {
+                                log.info("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
+                            }
+                            sink.tryEmitNext(chunk);
+                        })
                 .doOnError(e -> {
                     log.error("Transfer agent stream error: {}", e.getMessage());
                     ErrorCode errorCode = resolveErrorCode(e);
@@ -592,7 +581,7 @@ public class ChatEngine {
                         msg.setAgentName(targetAgent.getAgentName());
                         sessionService.saveMessage(msg);
                     }
-                    closeMcpClients(targetMcpClients);
+                    toolResolutionService.closeMcpClients(targetMcpClients);
                     log.info("Transfer agent response saved: path={}, len={}", targetPath, resp.length());
                     // Signal completion after transfer response is fully saved
                     if (onComplete != null) {
@@ -635,7 +624,7 @@ public class ChatEngine {
             }
         }
 
-        MemoryTools.clearContext(userId);
+        MemoryTools.clearContext(sessionId);
         SandboxContext.clear();
 
         try {
@@ -689,204 +678,6 @@ public class ChatEngine {
             }
         }
         return aiMessages;
-    }
-
-    /**
-     * Build a temporary AgentConfig for a sub-agent, inheriting from root.
-     */
-    private AgentConfig buildSubAgentConfig(AgentConfig root, ResolvedAgent sub) {
-        AgentConfig c = new AgentConfig();
-        c.setAgentId(root.getAgentId());
-        c.setName(sub.getDisplayName());
-        c.setSystemPrompt(sub.getSystemPrompt());
-        c.setModelId(sub.getModelId());
-        c.setTemperature(root.getTemperature());
-        c.setMaxTokens(root.getMaxTokens());
-        c.setMaxToolCalls(root.getMaxToolCalls());
-        c.setEnabled(root.getEnabled());
-        c.setMcpServerIds(sub.getMcpServerIds());
-        c.setSkillIds(sub.getSkillIds());
-        c.setContextWindow(root.getContextWindow());
-        c.setCompressionThreshold(root.getCompressionThreshold());
-        c.setCompressionKeepRounds(root.getCompressionKeepRounds());
-        c.setContextUsageThreshold(root.getContextUsageThreshold());
-        c.setMaxToolResultChars(root.getMaxToolResultChars());
-        c.setEnableMemoryTools(root.getEnableMemoryTools());
-        c.setMemoryProfileMaxTokens(root.getMemoryProfileMaxTokens());
-        c.setMemoryTaskMaxTokens(root.getMemoryTaskMaxTokens());
-        c.setSandboxEnabled(root.getSandboxEnabled());
-        c.setSandboxBackend(root.getSandboxBackend());
-        c.setSandboxProviderId(root.getSandboxProviderId());
-        c.setSandboxMode(root.getSandboxMode());
-        c.setSandboxTimeout(root.getSandboxTimeout());
-        return c;
-    }
-
-    /**
-     * Resolve tool callbacks from MemoryTools + SkillTools + MCP Servers.
-     */
-    private List<ToolCallback> resolveToolCallbacks(AgentConfig config, List<McpSyncClient> createdMcpClients) {
-        List<ToolCallback> callbacks = new ArrayList<>();
-
-        // 0. Memory tools (enabled by default)
-        if (!Boolean.FALSE.equals(config.getEnableMemoryTools())) {
-            try {
-                MethodToolCallbackProvider memoryProvider = MethodToolCallbackProvider.builder()
-                        .toolObjects(memoryTools)
-                        .build();
-                callbacks.addAll(Arrays.asList(memoryProvider.getToolCallbacks()));
-                log.info("Resolved {} memory tool callbacks for agent {}",
-                        memoryProvider.getToolCallbacks().length, config.getAgentId());
-            } catch (Exception e) {
-                log.warn("Failed to resolve memory tools: {}", e.getMessage());
-            }
-        }
-
-        // 1. Skill tools
-        try {
-            List<Skill> agentSkills = skillService.getSkillsForAgent(config.getAgentId());
-            if (!agentSkills.isEmpty()) {
-                MethodToolCallbackProvider provider = MethodToolCallbackProvider.builder()
-                        .toolObjects(skillTools)
-                        .build();
-                for (ToolCallback tc : provider.getToolCallbacks()) {
-                    callbacks.add(tc);
-                }
-                log.info("Resolved {} skill tool callbacks for agent {}",
-                        provider.getToolCallbacks().length, config.getAgentId());
-            }
-        } catch (Exception e) {
-            log.warn("Failed to resolve skill tools: {}", e.getMessage());
-        }
-
-        // 2. MCP Server tools + Sandbox tools
-        try {
-            // 2.1 Sandbox tools (if enabled for this agent)
-            if (Boolean.TRUE.equals(config.getSandboxEnabled())) {
-                try {
-                    SandboxMode mode = "SESSION".equalsIgnoreCase(config.getSandboxMode()) ? SandboxMode.SESSION : SandboxMode.STATELESS;
-
-                    MethodToolCallbackProvider sandboxProvider = MethodToolCallbackProvider.builder()
-                            .toolObjects(sandboxExecuteTool, sandboxInfoTool)
-                            .build();
-                    callbacks.addAll(Arrays.asList(sandboxProvider.getToolCallbacks()));
-
-                    if (mode == SandboxMode.SESSION) {
-                        MethodToolCallbackProvider fileProvider = MethodToolCallbackProvider.builder()
-                                .toolObjects(sandboxFileTool)
-                                .build();
-                        callbacks.addAll(Arrays.asList(fileProvider.getToolCallbacks()));
-                    }
-
-                    log.info("Resolved sandbox tool callbacks for agent {} (mode={})", config.getAgentId(), mode);
-                } catch (Exception e) {
-                    log.warn("Failed to resolve sandbox tools: {}", e.getMessage());
-                }
-            }
-
-            List<String> mcpServerIds = config.getMcpServerIds();
-            if (mcpServerIds != null && !mcpServerIds.isEmpty()) {
-                List<McpSyncClient> mcpClients = new ArrayList<>();
-                for (String serverId : mcpServerIds) {
-                    try {
-                        McpServer server = mcpServerRepository.findById(java.util.UUID.fromString(serverId))
-                                .orElse(null);
-                        if (server == null || !Boolean.TRUE.equals(server.getEnabled())) {
-                            log.warn("MCP Server {} not found or disabled", serverId);
-                            continue;
-                        }
-
-                        McpSyncClient mcpClient = createMcpClient(server);
-                        if (mcpClient != null) {
-                            mcpClients.add(mcpClient);
-                            log.info("Connected to MCP Server: {} ({})", server.getName(), server.getUrl());
-                        }
-                    } catch (Exception e) {
-                        log.warn("Failed to connect to MCP Server {}: {}", serverId, e.getMessage());
-                    }
-                }
-
-                if (!mcpClients.isEmpty()) {
-                    SyncMcpToolCallbackProvider mcpProvider = SyncMcpToolCallbackProvider.builder().mcpClients(mcpClients).build();
-                    callbacks.addAll(Arrays.asList(mcpProvider.getToolCallbacks()));
-                    log.info("Resolved {} MCP tool callbacks from {} servers for agent {}",
-                            mcpProvider.getToolCallbacks().length, mcpClients.size(), config.getAgentId());
-                }
-                createdMcpClients.addAll(mcpClients);
-            }
-        } catch (Exception e) {
-            log.warn("Failed to resolve MCP tools: {}", e.getMessage());
-        }
-
-        log.info("Total {} tool callbacks for agent {}", callbacks.size(), config.getAgentId());
-        return callbacks;
-    }
-
-    private McpSyncClient createMcpClient(McpServer server) {
-        String url = server.getUrl();
-
-        if (url == null || url.isBlank()) {
-            log.warn("MCP Server {} has no URL configured", server.getName());
-            return null;
-        }
-
-        String baseUri;
-        String path;
-        try {
-            java.net.URI uri = new java.net.URI(url);
-            String scheme = uri.getScheme() != null ? uri.getScheme() : "http";
-            String host = uri.getHost();
-            int port = uri.getPort();
-            baseUri = port > 0 ? scheme + "://" + host + ":" + port : scheme + "://" + host;
-            String rawPath = uri.getRawPath();
-            String query = uri.getRawQuery();
-            path = (rawPath != null ? rawPath : "") + (query != null ? "?" + query : "");
-            if (path.isEmpty()) path = "/";
-        } catch (java.net.URISyntaxException e) {
-            log.warn("Invalid MCP Server URL: {} - {}", url, e.getMessage());
-            return null;
-        }
-
-        String transportType = server.getTransport() != null ? server.getTransport().toLowerCase() : "sse";
-        io.modelcontextprotocol.spec.McpClientTransport mcpTransport;
-
-        switch (transportType) {
-            case "streamable-http", "streamable_http", "streamable" -> {
-                mcpTransport = io.modelcontextprotocol.client.transport.HttpClientStreamableHttpTransport.builder(baseUri)
-                        .endpoint(path)
-                        .connectTimeout(java.time.Duration.ofSeconds(10))
-                        .build();
-                log.info("Using Streamable HTTP transport: baseUri={}, endpoint={}", baseUri, path);
-            }
-            default -> {
-                mcpTransport = io.modelcontextprotocol.client.transport.HttpClientSseClientTransport.builder(baseUri)
-                        .sseEndpoint(path)
-                        .connectTimeout(java.time.Duration.ofSeconds(10))
-                        .build();
-                log.info("Using SSE transport: baseUri={}, sseEndpoint={}", baseUri, path);
-            }
-        }
-
-        McpSyncClient client = io.modelcontextprotocol.client.McpClient.sync(mcpTransport)
-                .requestTimeout(java.time.Duration.ofSeconds(30))
-                .build();
-
-        log.info("MCP client created for server: {} ({})", server.getName(), url);
-        return client;
-    }
-
-    private void closeMcpClients(List<McpSyncClient> clients) {
-        for (McpSyncClient client : clients) {
-            try {
-                client.close();
-                log.debug("Closed MCP client: {}", client.getServerInfo());
-            } catch (Exception e) {
-                log.warn("Failed to close MCP client: {}", e.getMessage());
-            }
-        }
-        if (!clients.isEmpty()) {
-            log.info("Closed {} MCP client(s)", clients.size());
-        }
     }
 
     private int estimateTokens(String text) {
@@ -1023,8 +814,8 @@ public class ChatEngine {
             }
 
             List<McpSyncClient> createdMcpClients = new ArrayList<>();
-            AgentConfig effectiveConfig = activeAgent.isRoot() ? config : buildSubAgentConfig(config, activeAgent);
-            List<ToolCallback> toolCallbacks = resolveToolCallbacks(effectiveConfig, createdMcpClients);
+            AgentConfig effectiveConfig = activeAgent.isRoot() ? config : toolResolutionService.buildSubAgentConfig(config, activeAgent);
+            List<ToolCallback> toolCallbacks = toolResolutionService.resolveToolCallbacks(effectiveConfig, createdMcpClients);
 
             // Add transfer tools
             List<ToolCallback> transferTools = agentTransferService.buildTransferTools(config, activePath);
@@ -1035,28 +826,7 @@ public class ChatEngine {
             // Append memory guide
             String effectiveSystemPrompt = systemPrompt;
             if (!Boolean.FALSE.equals(config.getEnableMemoryTools())) {
-                String memoryGuide = "\n\n## Memory\n\n" +
-                        "You have persistent memory via 2 tools. Use them proactively — don't wait to be asked.\n\n" +
-                        "Core principle: Save only facts that will still matter in future sessions.\n" +
-                        "The most valuable memory prevents the user from having to repeat themselves.\n\n" +
-                        "Two targets:\n" +
-                        "- memory_profile: Who the user IS — name, role, preferences, habits, corrections.\n" +
-                        "  Persists across all sessions. 1000 token limit.\n" +
-                        "- memory_session: Current task context — goals, progress, agreements, constraints.\n" +
-                        "  This session only. 2000 token limit.\n\n" +
-                        "WHEN TO SAVE (proactive):\n" +
-                        "- User corrects you or says 'remember this' / 'don't do that again'\n" +
-                        "- User shares a preference, habit, or personal detail\n" +
-                        "- User mentions their name, role, timezone, or communication style\n" +
-                        "Priority: User corrections > preferences > personal facts > communication style.\n\n" +
-                        "DO NOT save: common knowledge, completed-work logs, temporary TODO state,\n" +
-                        "or anything that will be stale in 7 days.\n\n" +
-                        "HOW TO WRITE — declarative facts, not instructions:\n" +
-                        "✓ 'User prefers concise responses'  ✗ 'Always respond concisely'\n\n" +
-                        "ACTIONS:\n" +
-                        "- memory_profile: read_all | add | replace | remove\n" +
-                        "- memory_session: read_all | add | replace | remove";
-                effectiveSystemPrompt = systemPrompt + memoryGuide;
+            effectiveSystemPrompt = systemPrompt + PromptAssembler.MEMORY_GUIDE;
             }
 
             int maxToolResultChars = config.getMaxToolResultChars() != null ? config.getMaxToolResultChars() : 3000;
@@ -1076,7 +846,7 @@ public class ChatEngine {
                 );
                 ToolCallAdvisor toolCallAdvisor = ToolCallAdvisor.builder()
                         .toolCallingManager(toolCallingManager)
-                        .streamToolCallResponses(true)
+                        .streamToolCallResponses(false)
                         .build();
                 requestSpec.toolCallbacks(truncatedCallbacks)
                         .advisors(toolCallAdvisor);
@@ -1104,8 +874,8 @@ public class ChatEngine {
                 String targetPrompt = promptAssembler.assembleSubAgentSystemPrompt(targetAgent, config, userId, sessionId, userMessage);
                 ChatClient targetChatClient = llmRouteService.getChatClient(targetAgent.getModelId());
 
-                AgentConfig targetConfig = buildSubAgentConfig(config, targetAgent);
-                List<ToolCallback> targetTools = resolveToolCallbacks(targetConfig, new ArrayList<>());
+                AgentConfig targetConfig = toolResolutionService.buildSubAgentConfig(config, targetAgent);
+                List<ToolCallback> targetTools = toolResolutionService.resolveToolCallbacks(targetConfig, new ArrayList<>());
                 targetTools.addAll(agentTransferService.buildTransferTools(config, transferInfo.getTargetPath()));
 
                 List<ToolCallback> truncatedTargetTools = targetTools.stream()
@@ -1123,7 +893,7 @@ public class ChatEngine {
                             config.getMaxToolCalls() != null ? config.getMaxToolCalls() : 50);
                     ToolCallAdvisor tca = ToolCallAdvisor.builder()
                             .toolCallingManager(tcm)
-                            .streamToolCallResponses(true)
+                            .streamToolCallResponses(false)
                             .build();
                     targetReq.toolCallbacks(truncatedTargetTools).advisors(tca);
                 }
@@ -1154,9 +924,9 @@ public class ChatEngine {
                 generateTitleAsync(sessionId, userMessage, chatClient);
             }
 
-            MemoryTools.clearContext(userId);
+            MemoryTools.clearContext(sessionId);
             SandboxContext.clear();
-            closeMcpClients(createdMcpClients);
+            toolResolutionService.closeMcpClients(createdMcpClients);
 
             try {
                 sessionCompressor.compressIfNeeded(sessionId, effectiveModelId,

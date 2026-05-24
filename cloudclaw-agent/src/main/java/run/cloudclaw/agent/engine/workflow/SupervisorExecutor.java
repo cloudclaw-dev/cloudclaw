@@ -11,12 +11,14 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.Executor;
 import java.util.stream.Collectors;
 
 /**
@@ -34,11 +36,19 @@ import java.util.stream.Collectors;
  */
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class SupervisorExecutor {
 
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
+    private final Executor workflowExecutor;
+
+    public SupervisorExecutor(WorkflowNodeResolver nodeResolver,
+                           WorkflowChatHelper chatHelper,
+                           @Qualifier("workflowExecutor") Executor workflowExecutor) {
+        this.nodeResolver = nodeResolver;
+        this.chatHelper = chatHelper;
+        this.workflowExecutor = workflowExecutor;
+    }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
                                     String userMessage, AgentConfig config, WorkflowDef workflow) {
@@ -55,7 +65,7 @@ public class SupervisorExecutor {
         SupervisorConfig supervisorConfig = workflow.getSupervisorConfig();
         int maxIterations = supervisorConfig != null ? supervisorConfig.getMaxIterations() : 5;
 
-        Thread supervisorThread = new Thread(() -> {
+        Runnable supervisorThread = () -> {
             try {
                 // Emit supervisor_plan event at the start with the list of available agents
                 List<String> agentNames = resolvedNodes.stream()
@@ -155,11 +165,9 @@ public class SupervisorExecutor {
                 log.error("Supervisor execution error: {}", e.getMessage(), e);
                 sink.tryEmitError(e);
             }
-        });
+        };
 
-        supervisorThread.setName("supervisor-" + sessionId);
-        supervisorThread.setDaemon(true);
-        supervisorThread.start();
+        workflowExecutor.execute(supervisorThread);
 
         return sink.asFlux();
     }

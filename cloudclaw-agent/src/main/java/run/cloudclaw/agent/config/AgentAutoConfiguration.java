@@ -38,8 +38,25 @@ public class AgentAutoConfiguration {
         executor.setQueueCapacity(100);
         executor.setThreadNamePrefix("chat-async-");
         executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
         executor.initialize();
         log.info("Chat async executor initialized: core=4, max=16, queue=100");
+        return executor;
+    }
+
+    @Bean("workflowExecutor")
+    public Executor workflowExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(4);
+        executor.setMaxPoolSize(16);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("workflow-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(60);
+        executor.initialize();
+        log.info("Workflow executor initialized: core=4, max=16, queue=200");
         return executor;
     }
 }

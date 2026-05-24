@@ -22,6 +22,29 @@ import java.util.List;
 @RequiredArgsConstructor
 public class PromptAssembler {
 
+    /** Memory tool usage guide appended to system prompts when memory tools are enabled. */
+    public static final String MEMORY_GUIDE = "\n\n## Memory\n\n" +
+            "You have persistent memory via 2 tools. Use them proactively - don't wait to be asked.\n\n" +
+            "Core principle: Save only facts that will still matter in future sessions.\n" +
+            "The most valuable memory prevents the user from having to repeat themselves.\n\n" +
+            "Two targets:\n" +
+            "- memory_profile: Who the user IS - name, role, preferences, habits, corrections.\n" +
+            "  Persists across all sessions. 1000 token limit.\n" +
+            "- memory_session: Current task context - goals, progress, agreements, constraints.\n" +
+            "  This session only. 2000 token limit.\n\n" +
+            "WHEN TO SAVE (proactive):\n" +
+            "- User corrects you or says 'remember this' / 'don't do that again'\n" +
+            "- User shares a preference, habit, or personal detail\n" +
+            "- User mentions their name, role, timezone, or communication style\n" +
+            "Priority: User corrections > preferences > personal facts > communication style.\n\n" +
+            "DO NOT save: common knowledge, completed-work logs, temporary TODO state,\n" +
+            "or anything that will be stale in 7 days.\n\n" +
+            "HOW TO WRITE - declarative facts, not instructions:\n" +
+            "OK 'User prefers concise responses'  NO 'Always respond concisely'\n\n" +
+            "ACTIONS:\n" +
+            "- memory_profile: read_all | add | replace | remove\n" +
+            "- memory_session: read_all | add | replace | remove";
+
     private final MemoryInjector memoryInjector;
     private final SkillService skillService;
 
