@@ -66,21 +66,24 @@ public class GlobalExceptionHandler {
             ConnectException.class, TimeoutException.class})
     public ResponseEntity<Result<Void>> handleExternalServiceException(Exception e) {
         log.error("External service error: {}", e.getMessage(), e);
+        // Fix M4: This 5002 code is for external service unavailability (not session access denied).
+        // SESSION_ACCESS_DENIED was changed to 5003 to avoid collision with this value.
         return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
                 .body(Result.error(5002, "common.serviceUnavailable"));
     }
 
     @ExceptionHandler(Exception.class)
-    @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
-    public Result<Void> handleGenericException(Exception e, HttpServletRequest request) {
-        // Skip SSE responses — these should be handled within the Flux stream
+    public ResponseEntity<Result<Void>> handleGenericException(Exception e, HttpServletRequest request) {
+        // Fix M5: SSE errors now return a proper 500 response instead of null
         String accept = request.getHeader("Accept");
         if (accept != null && accept.contains("text/event-stream")) {
-            log.error("SSE stream error (skipping JSON response): {}", e.getMessage());
-            return null;
+            log.error("SSE stream error: {}", e.getMessage());
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new Result<>(500, "Stream error", null));
         }
         log.error("Unexpected error on {}: {}", request.getRequestURI(), e.getMessage(), e);
-        return Result.error(5000, "common.internalError");
+        return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                .body(Result.error(5000, "common.internalError"));
     }
 
     private HttpStatus mapToHttpStatus(int code) {

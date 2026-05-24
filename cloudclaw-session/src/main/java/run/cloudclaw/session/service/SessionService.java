@@ -23,6 +23,8 @@ import org.springframework.transaction.annotation.Transactional;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.locks.ReentrantLock;
 
 /**
  * Service layer for session management operations.
@@ -37,6 +39,13 @@ public class SessionService {
     private final SessionItemRepository sessionItemRepository;
     private final SessionCache sessionCache;
     private final ApplicationEventPublisher eventPublisher;
+
+    // Fix M8: Per-session locks to prevent concurrent cache update race conditions
+    private final ConcurrentHashMap<String, ReentrantLock> sessionLocks = new ConcurrentHashMap<>();
+
+    private ReentrantLock getLock(String sessionId) {
+        return sessionLocks.computeIfAbsent(sessionId, k -> new ReentrantLock());
+    }
 
     @Transactional
     public Session createSession(String userId, String agentId, String title) {
@@ -99,6 +108,8 @@ public class SessionService {
         messageRepository.deleteBySessionId(sessionUuid);
         sessionRepository.delete(session);
         try { sessionCache.evictContext(sessionId); sessionCache.evictSession(sessionId); } catch (Exception e) { log.debug("Cache eviction failed (non-critical): {}", e.getMessage()); }
+        // Fix M8: Clean up per-session lock on delete to prevent memory leak
+        sessionLocks.remove(sessionId);
         eventPublisher.publishEvent(new SessionDeleteEvent(sessionId));
         log.info("Deleted session {} for user {}", sessionId, userId);
     }
@@ -119,16 +130,28 @@ public class SessionService {
         return messages;
     }
 
+    /**
+     * Fix M8: Save message and refresh cache atomically per session to prevent race conditions.
+     * Uses a per-session ReentrantLock so that concurrent saves to the same session
+     * serialize their DB save + cache refresh, avoiding stale cache reads.
+     */
     @Transactional
     public Message saveMessage(Message message) {
-        Message saved = messageRepository.save(message);
-        log.debug("Saved message {} for session {}", saved.getId(), saved.getSessionId());
+        String sessionId = message.getSessionId().toString();
+        ReentrantLock lock = getLock(sessionId);
+        lock.lock();
+        try {
+            Message saved = messageRepository.save(message);
+            log.debug("Saved message {} for session {}", saved.getId(), saved.getSessionId());
 
-        sessionRepository.updateTimestamp(saved.getSessionId().toString(), LocalDateTime.now());
+            sessionRepository.updateTimestamp(saved.getSessionId().toString(), LocalDateTime.now());
 
-        refreshContextCache(saved.getSessionId().toString());
+            refreshContextCache(saved.getSessionId().toString());
 
-        return saved;
+            return saved;
+        } finally {
+            lock.unlock();
+        }
     }
 
     @Transactional(readOnly = true)
@@ -144,16 +167,22 @@ public class SessionService {
         );
     }
 
+    /**
+     * Fix H6: Update title with userId validation to prevent cross-user modification.
+     */
     @Transactional
-    public void updateTitle(String sessionId, String title) {
-        Session session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND, sessionId));
+    public void updateTitle(String sessionId, String userId, String title) {
+        Session session = getSession(userId, sessionId);
         session.setTitle(title);
         session.setUpdatedAt(LocalDateTime.now());
         sessionRepository.save(session);
-        log.info("Updated title for session {}", sessionId);
+        log.info("Updated title for session {} by user {}", sessionId, userId);
     }
 
+    /**
+     * Fix M8: Refresh the context cache for a session.
+     * Should be called under the per-session lock to ensure atomicity with message saves.
+     */
     private void refreshContextCache(String sessionId) {
         UUID sessionUuid = UUID.fromString(sessionId);
         List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
@@ -206,26 +235,27 @@ public class SessionService {
         return messageRepository.findById(messageId).orElse(null);
     }
 
+    /**
+     * Fix H6: Update session status with userId validation to prevent cross-user modification.
+     */
     @Transactional
-    public void updateSessionStatus(String sessionId, String status) {
-        sessionRepository.findById(sessionId).ifPresent(session -> {
-            session.setStatus(status);
-            session.setUpdatedAt(LocalDateTime.now());
-            sessionRepository.save(session);
-        });
+    public void updateSessionStatus(String sessionId, String userId, String status) {
+        Session session = getSession(userId, sessionId);
+        session.setStatus(status);
+        session.setUpdatedAt(LocalDateTime.now());
+        sessionRepository.save(session);
     }
 
     /**
-     * Update the active agent path for a session (Agent Transfer v2).
+     * Fix H6: Update active agent path with userId validation to prevent cross-user modification.
      */
     @Transactional
-    public void updateActiveAgentPath(String sessionId, String activeAgentPath) {
-        sessionRepository.findById(sessionId).ifPresent(session -> {
-            session.setActiveAgentPath(activeAgentPath);
-            session.setUpdatedAt(LocalDateTime.now());
-            sessionRepository.save(session);
-            log.info("Updated active_agent_path for session {}: {}", sessionId, activeAgentPath);
-        });
+    public void updateActiveAgentPath(String sessionId, String userId, String activeAgentPath) {
+        Session session = getSession(userId, sessionId);
+        session.setActiveAgentPath(activeAgentPath);
+        session.setUpdatedAt(LocalDateTime.now());
+        sessionRepository.save(session);
+        log.info("Updated active_agent_path for session {} by user {}: {}", sessionId, userId, activeAgentPath);
     }
 
     @Transactional(readOnly = true)
@@ -234,16 +264,15 @@ public class SessionService {
     }
 
     /**
-     * Update the workflow state JSON for a session (Workflow v3).
+     * Fix H6: Update workflow state with userId validation to prevent cross-user modification.
      */
     @Transactional
-    public void updateWorkflowState(String sessionId, String workflowState) {
-        sessionRepository.findById(sessionId).ifPresent(session -> {
-            session.setWorkflowState(workflowState);
-            session.setUpdatedAt(LocalDateTime.now());
-            sessionRepository.save(session);
-            log.info("Updated workflow_state for session {}: {} chars", sessionId,
-                    workflowState != null ? workflowState.length() : 0);
-        });
+    public void updateWorkflowState(String sessionId, String userId, String workflowState) {
+        Session session = getSession(userId, sessionId);
+        session.setWorkflowState(workflowState);
+        session.setUpdatedAt(LocalDateTime.now());
+        sessionRepository.save(session);
+        log.info("Updated workflow_state for session {} by user {}: {} chars", sessionId, userId,
+                workflowState != null ? workflowState.length() : 0);
     }
 }

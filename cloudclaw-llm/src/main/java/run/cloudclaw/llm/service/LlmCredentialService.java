@@ -2,7 +2,7 @@ package run.cloudclaw.llm.service;
 
 import run.cloudclaw.common.exception.BusinessException;
 import run.cloudclaw.common.exception.ErrorCode;
-import run.cloudclaw.llm.encryption.AesEncryptionService;
+import run.cloudclaw.common.util.CryptoService;
 import run.cloudclaw.llm.model.LlmCredential;
 import run.cloudclaw.llm.repository.LlmCredentialRepository;
 import lombok.RequiredArgsConstructor;
@@ -19,7 +19,8 @@ import java.util.List;
 public class LlmCredentialService {
 
     private final LlmCredentialRepository credentialRepository;
-    private final AesEncryptionService encryptionService;
+    // Fix H1: Use unified CryptoService instead of duplicate AesEncryptionService
+    private final CryptoService cryptoService;
 
     public List<LlmCredential> listByProvider(String providerId) {
         return credentialRepository.findByProviderId(providerId);
@@ -37,7 +38,7 @@ public class LlmCredentialService {
     @Transactional
     public LlmCredential create(LlmCredential credential, String plainApiKey) {
         log.info("Creating credential '{}' for provider {}", credential.getName(), credential.getProviderId());
-        credential.setApiKeyEncrypted(encryptionService.encrypt(plainApiKey));
+        credential.setApiKeyEncrypted(cryptoService.encrypt(plainApiKey));
         return credentialRepository.save(credential);
     }
 
@@ -45,7 +46,7 @@ public class LlmCredentialService {
     public LlmCredential update(String id, String plainApiKey, Boolean enabled) {
         LlmCredential existing = getById(id);
         if (plainApiKey != null) {
-            existing.setApiKeyEncrypted(encryptionService.encrypt(plainApiKey));
+            existing.setApiKeyEncrypted(cryptoService.encrypt(plainApiKey));
         }
         if (enabled != null) {
             existing.setEnabled(enabled);
@@ -74,6 +75,6 @@ public class LlmCredentialService {
     }
 
     public String decryptKey(LlmCredential credential) {
-        return encryptionService.decrypt(credential.getApiKeyEncrypted());
+        return cryptoService.decrypt(credential.getApiKeyEncrypted());
     }
 }

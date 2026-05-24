@@ -75,7 +75,17 @@ public class ChatController {
         return chatEngine.chat(userId, id, request.getMessage())
                 .map(chunk -> ServerSentEvent.<ChatChunk>builder().data(chunk).build())
                 .doOnError(e -> log.error("Error during chat streaming for session [{}]: {}", id, e.getMessage(), e))
-                .doOnComplete(() -> log.debug("Chat streaming completed for session [{}]", id));
+                .doOnComplete(() -> log.debug("Chat streaming completed for session [{}]", id))
+                // Fix M5: On error, return a proper SSE error event instead of null/empty
+                .onErrorResume(e -> {
+                    ChatChunk errorChunk = ChatChunk.builder()
+                            .content("")
+                            .type("error")
+                            .errorCode(500)
+                            .done(true)
+                            .build();
+                    return Flux.just(ServerSentEvent.<ChatChunk>builder().data(errorChunk).build());
+                });
     }
 
     /**
@@ -119,6 +129,10 @@ public class ChatController {
                                                     @AuthUser String userId,
                                                     @RequestParam(defaultValue = "1") int page,
                                                     @RequestParam(defaultValue = "50") int size) {
+        // Fix M7: Cap page size at 100
+        size = Math.min(size, 100);
+        // Fix: 分页参数加上限 Math.min(size, 100)，防止一次查询过多数据
+        size = Math.min(size, 100);
         log.debug("User [{}] getting messages for session [{}], page={}, size={}", userId, id, page, size);
 
         // Verify session ownership before returning messages

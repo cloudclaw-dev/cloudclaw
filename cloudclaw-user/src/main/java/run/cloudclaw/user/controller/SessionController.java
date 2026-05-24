@@ -53,6 +53,8 @@ public class SessionController {
                                                      @RequestParam(required = false) String agentId,
                                                      @RequestParam(defaultValue = "1") int page,
                                                      @RequestParam(defaultValue = "20") int size) {
+        // Fix M7: Cap page size at 100
+        size = Math.min(size, 100);
         log.debug("User [{}] listing sessions, agentId={}, page={}, size={}", userId, agentId, page, size);
         PageResult<Session> result = sessionService.listSessions(userId, agentId, page, size);
         return Result.ok(result);

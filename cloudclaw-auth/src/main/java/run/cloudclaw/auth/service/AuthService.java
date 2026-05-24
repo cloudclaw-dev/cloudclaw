@@ -1,6 +1,7 @@
 package run.cloudclaw.auth.service;
 
 import run.cloudclaw.auth.repository.UserRepository;
+import run.cloudclaw.auth.security.LoginRateLimiter;
 import run.cloudclaw.auth.token.JwtTokenProvider;
 import run.cloudclaw.auth.token.TokenProperties;
 import run.cloudclaw.common.dto.LoginRequest;
@@ -15,6 +16,8 @@ import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
 import java.util.UUID;
+import java.util.concurrent.Executors;
+import java.util.concurrent.TimeUnit;
 
 /**
  * Authentication service handling login and token refresh operations.
@@ -33,29 +36,50 @@ public class AuthService {
     private final PasswordEncoder passwordEncoder;
     private final TokenProperties tokenProperties;
 
+    // Fix C3: Per-IP rate limiter for login — max 5 requests per 60 seconds (1 minute)
+    private static final LoginRateLimiter loginRateLimiter = new LoginRateLimiter(5, 60_000);
+
+    static {
+        // Periodically clean up expired rate limiter entries
+        Executors.newSingleThreadScheduledExecutor(r -> {
+            Thread t = new Thread(r, "login-rate-limiter-cleanup");
+            t.setDaemon(true);
+            return t;
+        }).scheduleAtFixedRate(loginRateLimiter::cleanup, 5, 5, TimeUnit.MINUTES);
+    }
+
     /**
      * Authenticate a user with username and password, returning JWT tokens.
+     * Fix C3: Added clientIp parameter for per-IP rate limiting at the service layer.
      *
-     * @param request the login request containing username and password
+     * @param request  the login request containing username and password
+     * @param clientIp the client IP address for rate limiting
      * @return {@link LoginResponse} with access and refresh tokens
-     * @throws BusinessException if the user is not found, account is disabled, or password is invalid
+     * @throws BusinessException if rate limited, user not found, account disabled, or password invalid
      */
-    public LoginResponse login(LoginRequest request) {
+    public LoginResponse login(LoginRequest request, String clientIp) {
+        // Fix C3: Rate limit login attempts per client IP before any credential check
+        if (!loginRateLimiter.tryAcquire(clientIp)) {
+            log.warn("Login rate limit exceeded for IP: {}", clientIp);
+            throw new BusinessException(ErrorCode.AUTH_RATE_LIMITED);
+        }
+
         log.info("Login attempt for username: {}", request.getUsername());
 
+        // Fix: 统一登录失败日志消息，不区分"用户不存在"和"密码错误"，防止用户名枚举攻击
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> {
-                    log.warn("Login failed: user not found for username: {}", request.getUsername());
+                    log.warn("Login failed: invalid credentials");
                     return new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
                 });
 
         if (!user.getEnabled()) {
-            log.warn("Login failed: account disabled for username: {}", request.getUsername());
+            log.warn("Login failed: invalid credentials");
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
-            log.warn("Login failed: invalid password for username: {}", request.getUsername());
+            log.warn("Login failed: invalid credentials");
             throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
@@ -75,9 +99,11 @@ public class AuthService {
 
     /**
      * Refresh an access token using a valid refresh token.
+     * Fix C4: Implements refresh token rotation — each use issues a new refresh token,
+     * preventing token replay attacks.
      *
      * @param request the refresh request containing the refresh token
-     * @return {@link LoginResponse} with a new access token and the same refresh token
+     * @return {@link LoginResponse} with a new access token and a new refresh token
      * @throws BusinessException if the refresh token is invalid or the user is not found
      */
     public LoginResponse refreshToken(RefreshRequest request) {
@@ -113,11 +139,14 @@ public class AuthService {
                 userId, user.getUsername(), roleString
         );
 
+        // Fix C4: Issue a new refresh token on every use (rotation)
+        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId);
+
         log.info("Token refresh successful for userId: {}", userId);
 
         return new LoginResponse(
                 newAccessToken,
-                refreshToken,
+                newRefreshToken,
                 tokenProperties.getAccessTokenTtl().getSeconds()
         );
     }

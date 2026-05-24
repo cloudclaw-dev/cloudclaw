@@ -79,7 +79,8 @@ class SessionServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getSession("user-1", "s-1"));
-        assertEquals(5002, ex.getCode());
+        // Fix M4: Updated to match new SESSION_ACCESS_DENIED code (was 5002, now 5003)
+        assertEquals(5003, ex.getCode());
     }
 
     @Test
@@ -135,14 +136,15 @@ class SessionServiceTest {
     }
 
     @Test
-    @DisplayName("updateTitle 应更新标题")
+    @DisplayName("updateTitle 应更新标题并校验 userId")
     void updateTitle() {
         Session session = new Session();
         session.setId("s-1");
+        session.setUserId("user-1");
         when(sessionRepository.findById("s-1")).thenReturn(Optional.of(session));
         when(sessionRepository.save(any(Session.class))).thenReturn(session);
 
-        service.updateTitle("s-1", "New Title");
+        service.updateTitle("s-1", "user-1", "New Title");
         assertEquals("New Title", session.getTitle());
         verify(sessionRepository).save(session);
     }

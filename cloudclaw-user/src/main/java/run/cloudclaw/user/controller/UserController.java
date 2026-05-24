@@ -109,6 +109,10 @@ public class UserController {
         if (newPassword.length() < 6) {
             throw new BusinessException(ErrorCode.BAD_REQUEST, "New password must be at least 6 characters");
         }
+        // Fix M10: Validate password format — at least one letter and one digit
+        if (!newPassword.matches("^(?=.*[a-zA-Z])(?=.*\\d).+$")) {
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "New password must contain at least one letter and one digit");
+        }
 
         User user = userQueryRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "User not found"));

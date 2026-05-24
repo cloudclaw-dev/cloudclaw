@@ -87,9 +87,9 @@ public class AesCryptoUtil {
 
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (Exception e) {
-            // Backward compatibility: return as-is if decryption fails
-            log.warn("Decryption failed, returning ciphertext as-is for backward compatibility", e);
-            return ciphertext;
+            // Fix: 解密失败不再静默返回密文，而是抛出 BusinessException 防止密文被当作明文使用
+            throw new run.cloudclaw.common.exception.BusinessException(
+                    run.cloudclaw.common.exception.ErrorCode.DECRYPTION_FAILED, "Decryption failed", e);
         }
     }
 }

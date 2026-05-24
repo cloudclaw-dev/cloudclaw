@@ -23,10 +23,12 @@ public class InMemoryLogAppender extends AppenderBase<ILoggingEvent> {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
             .withZone(ZoneId.systemDefault());
 
-    private final ArrayBlockingQueue<Map<String, String>> buffer;
-    private int maxSize = DEFAULT_MAX_SIZE;
+    // Fix: 移除 final 修饰，使 setMaxSize 可以重建 buffer
+    private ArrayBlockingQueue<Map<String, String>> buffer;
+    private int maxSize;
 
     public InMemoryLogAppender() {
+        this.maxSize = DEFAULT_MAX_SIZE;
         this.buffer = new ArrayBlockingQueue<>(DEFAULT_MAX_SIZE);
     }
 
@@ -78,7 +80,15 @@ public class InMemoryLogAppender extends AppenderBase<ILoggingEvent> {
         }
     }
 
+    // Fix: setMaxSize 时重建 buffer，使新容量立即生效
     public void setMaxSize(int maxSize) {
         this.maxSize = maxSize;
+        ArrayBlockingQueue<Map<String, String>> newBuffer = new ArrayBlockingQueue<>(maxSize);
+        this.buffer.drainTo(newBuffer);
+        // If drained more than new capacity, trim from head (keep newest)
+        while (newBuffer.size() > maxSize) {
+            newBuffer.poll();
+        }
+        this.buffer = newBuffer;
     }
 }

@@ -5,6 +5,7 @@ import run.cloudclaw.admin.dto.UpdateAgentRequest;
 import run.cloudclaw.admin.repository.AdminAgentRepository;
 import run.cloudclaw.admin.repository.AdminSessionRepository;
 import run.cloudclaw.agent.config.AgentConfigService;
+import run.cloudclaw.auth.security.AuthUser;
 import run.cloudclaw.common.config.ConfigChangeEvent;
 import run.cloudclaw.common.config.ConfigChangeNotifier;
 import run.cloudclaw.common.dto.Result;
@@ -50,7 +51,9 @@ public class AdminAgentController {
 
     @PostMapping
     @Transactional
-    public Result<Agent> createAgent(@Valid @RequestBody CreateAgentRequest request) {
+    public Result<Agent> createAgent(@Valid @RequestBody CreateAgentRequest request,
+                                     // Fix: 从 SecurityContext 获取当前登录用户 ID 作为 createdBy，而非硬编码
+                                     @AuthUser String userId) {
         log.info("Admin creating agent with name: {}", request.getName());
 
         Agent agent = new Agent();
@@ -71,7 +74,7 @@ public class AdminAgentController {
         agent.setSandboxProviderId(request.getSandboxProviderId());
         validateSandboxMode(request.getSandboxBackend(), request.getSandboxMode(), request.getSandboxProviderId());
         agent.setEnabled(true);
-        agent.setCreatedBy(UUID.fromString("00000000-0000-0000-0000-000000000001"));
+        agent.setCreatedBy(UUID.fromString(userId != null ? userId : "00000000-0000-0000-0000-000000000001"));
 
         // Sub-agents JSON (Agent Transfer v2)
         if (request.getSubAgents() != null) {
@@ -114,7 +117,7 @@ public class AdminAgentController {
 
         log.info("Agent created successfully with id: {}", saved.getId());
         configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.CREATE, "agent", saved.getId().toString());
-        return Result.ok(saved);
+        return Result.ok(filterResponse(saved));
     }
 
     @GetMapping
@@ -122,6 +125,7 @@ public class AdminAgentController {
         log.debug("Admin listing all agents");
         List<Agent> agents = agentRepository.findAll();
         agents.forEach(this::populateBindings);
+        agents.forEach(this::filterResponse);
         return Result.ok(agents);
     }
 
@@ -134,7 +138,7 @@ public class AdminAgentController {
                 .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_NOT_FOUND, id));
         populateBindings(agent);
 
-        return Result.ok(agent);
+        return Result.ok(filterResponse(agent));
     }
 
     @PutMapping("/{id}")
@@ -220,7 +224,7 @@ public class AdminAgentController {
         log.info("Agent updated successfully: {}", id);
         agentConfigService.evictCache(id);
         configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.UPDATE, "agent", id);
-        return Result.ok(saved);
+        return Result.ok(filterResponse(saved));
     }
 
     @DeleteMapping("/{id}")
@@ -257,6 +261,17 @@ public class AdminAgentController {
         List<String> skillIds = agentSkillRepository.findByAgentId(agent.getId())
                 .stream().map(b -> b.getSkillId().toString()).toList();
         agent.setSkillIds(skillIds);
+    }
+
+    /**
+     * Fix H3: Filter out internal raw JSON fields from Agent responses.
+     * The sub_agents and workflow are stored as raw JSON strings internally
+     * but should not be exposed in API responses (they are parsed into structured config).
+     */
+    private Agent filterResponse(Agent agent) {
+        agent.setSubAgents(null);
+        agent.setWorkflow(null);
+        return agent;
     }
 
     private void validateSandboxMode(String backend, String mode, String providerId) {

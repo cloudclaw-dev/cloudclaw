@@ -52,6 +52,12 @@ public class AdminUserController {
             throw new BusinessException(ErrorCode.CONFLICT, request.getUsername());
         }
 
+        // Fix M3: Check email uniqueness at business layer
+        if (request.getEmail() != null && !request.getEmail().isBlank()
+                && userRepository.existsByEmail(request.getEmail())) {
+            throw new BusinessException(ErrorCode.CONFLICT, "Email already in use: " + request.getEmail());
+        }
+
         User user = new User();
         user.setUsername(request.getUsername());
         user.setPassword(passwordEncoder.encode(request.getPassword()));
@@ -75,6 +81,8 @@ public class AdminUserController {
     public Result<PageResult<UserDTO>> listUsers(
             @RequestParam(defaultValue = "1") int page,
             @RequestParam(defaultValue = "20") int size) {
+        // Fix M7: Cap page size at 100 to prevent excessive DB load
+        size = Math.min(size, 100);
         log.debug("Admin listing users, page: {}, size: {}", page, size);
 
         Page<User> userPage = userRepository.findAll(
@@ -104,6 +112,10 @@ public class AdminUserController {
                 .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, id));
 
         if (request.getEmail() != null) {
+            // Fix M3: Check email uniqueness when updating
+            if (userRepository.existsByEmailAndIdNot(request.getEmail(), userId)) {
+                throw new BusinessException(ErrorCode.CONFLICT, "Email already in use: " + request.getEmail());
+            }
             user.setEmail(request.getEmail());
         }
         if (request.getRole() != null) {

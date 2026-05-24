@@ -31,6 +31,9 @@ import java.util.UUID;
 @RequiredArgsConstructor
 public class AgentConfigService {
 
+    // Fix: 提取 ObjectMapper 为静态常量，避免每次调用 resolveConfig 都创建新实例
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
     private static final String CACHE_NAME = "agentConfig";
 
     private final AgentRepository agentRepository;
@@ -130,10 +133,9 @@ public class AgentConfigService {
         // Parse sub_agents JSON (Agent Transfer v2)
         if (agent.getSubAgents() != null && !agent.getSubAgents().isBlank()) {
             try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                java.util.List<AgentConfig.SubAgentDef> subAgents = mapper.readValue(
+                java.util.List<AgentConfig.SubAgentDef> subAgents = MAPPER.readValue(
                         agent.getSubAgents(),
-                        mapper.getTypeFactory().constructCollectionType(java.util.List.class, AgentConfig.SubAgentDef.class));
+                        MAPPER.getTypeFactory().constructCollectionType(java.util.List.class, AgentConfig.SubAgentDef.class));
                 config.setSubAgents(subAgents);
                 log.debug("Parsed {} sub-agents for agent {}", subAgents.size(), agent.getId());
             } catch (Exception e) {
@@ -148,8 +150,7 @@ public class AgentConfigService {
                 agent.getWorkflow() != null ? agent.getWorkflow().length() + " chars" : "null");
         if (agent.getWorkflow() != null && !agent.getWorkflow().isBlank()) {
             try {
-                com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                run.cloudclaw.common.dto.workflow.WorkflowDef workflow = mapper.readValue(
+                run.cloudclaw.common.dto.workflow.WorkflowDef workflow = MAPPER.readValue(
                         agent.getWorkflow(), run.cloudclaw.common.dto.workflow.WorkflowDef.class);
                 config.setWorkflow(workflow);
                 log.debug("Parsed workflow for agent {}: mode={}, nodes={}",

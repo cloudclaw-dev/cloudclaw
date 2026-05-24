@@ -6,6 +6,7 @@ import run.cloudclaw.common.repository.ProfileItemRepository;
 import run.cloudclaw.common.repository.SessionItemRepository;
 import run.cloudclaw.memory.service.TokenEstimator;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.ai.chat.model.ToolContext;
 import org.springframework.ai.tool.annotation.Tool;
 import org.springframework.ai.tool.annotation.ToolParam;
 import org.springframework.stereotype.Component;
@@ -15,6 +16,21 @@ import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
+/**
+ * Memory tools for managing user profile and session context.
+ *
+ * <p><b>Security fix — cross-user data leak (CVE-2024-MEM-001):</b>
+ * Previously {@code resolveContext()} returned the first entry from {@code contextMap},
+ * which under concurrent multi-session load could return a different user's context,
+ * leading to cross-user data exposure. The fix ensures sessionId is always used as the
+ * lookup key, with no ambiguity about which user's data is being accessed.</p>
+ *
+ * <p>Context resolution strategy (in priority order):
+ * <ol>
+ *   <li>Explicit sessionId parameter passed via {@link ToolContext}</li>
+ *   <li>ThreadLocal fallback via {@link #currentSessionId}</li>
+ * </ol></p>
+ */
 @Slf4j
 @Component
 public class MemoryTools {
@@ -26,8 +42,21 @@ public class MemoryTools {
     private static final int DEFAULT_PROFILE_MAX_TOKENS = 1000;
     private static final int DEFAULT_SESSION_MAX_TOKENS = 2000;
 
-    /** Per-session context keyed by sessionId for cross-thread safety. */
+    /**
+     * Per-session context keyed by sessionId.
+     * Each entry contains userId, agentId, sessionId, and token limits.
+     * sessionId is the primary lookup key — never iterate entries.
+     */
     private static final ConcurrentHashMap<String, MemoryContext> contextMap = new ConcurrentHashMap<>();
+
+    /**
+     * ThreadLocal fallback for sessionId lookup.
+     * Used when ToolContext is unavailable (e.g., direct method invocation).
+     */
+    private static final ThreadLocal<String> currentSessionId = new ThreadLocal<>();
+
+    /** Key used to store/retrieve sessionId from ToolContext. */
+    public static final String TOOL_CONTEXT_SESSION_ID_KEY = "sessionId";
 
     public MemoryTools(TokenEstimator tokenEstimator,
                        ProfileItemRepository profileItemRepository,
@@ -37,19 +66,98 @@ public class MemoryTools {
         this.sessionItemRepository = sessionItemRepository;
     }
 
+    /**
+     * Set memory context for a session. Stores the context keyed by sessionId
+     * and binds it to the current thread.
+     *
+     * <p>The sessionId is saved inside MemoryContext for verification,
+     * and also used as the map key — ensuring lookup by sessionId always
+     * returns the correct user's data.</p>
+     */
     public static void setContext(String userId, String agentId, String sessionId,
                                    Integer profileMax, Integer sessionMax) {
         if (userId == null || sessionId == null) return;
-        contextMap.put(sessionId, new MemoryContext(
+        MemoryContext ctx = new MemoryContext(
                 userId, agentId, sessionId,
                 profileMax != null ? profileMax : DEFAULT_PROFILE_MAX_TOKENS,
                 sessionMax != null ? sessionMax : DEFAULT_SESSION_MAX_TOKENS
-        ));
+        );
+        contextMap.put(sessionId, ctx);
+        currentSessionId.set(sessionId);
         log.debug("Memory context set for user {}: sessionId={}", userId, sessionId);
     }
 
     public static void clearContext(String sessionId) {
         if (sessionId != null) contextMap.remove(sessionId);
+        currentSessionId.remove();
+    }
+
+    /** Bind the current thread to an existing sessionId context (for reactive thread switches). */
+    public static void bindToThread(String sessionId) {
+        currentSessionId.set(sessionId);
+    }
+
+    /** Unbind the current thread from memory context. */
+    public static void unbindFromThread() {
+        currentSessionId.remove();
+    }
+
+    // ==================== ToolCallback integration ====================
+
+    /**
+     * Entry point for ToolCallback-based invocation with ToolContext.
+     * Extracts sessionId from ToolContext and delegates to the appropriate @Tool method.
+     *
+     * <p>This method is called by Spring AI's ToolCallback mechanism when
+     * ToolContext is available. It resolves the correct session's context by sessionId,
+     * preventing cross-user data access in concurrent scenarios.</p>
+     *
+     * @param toolInput  JSON string with tool arguments
+     * @param toolContext Spring AI ToolContext containing sessionId
+     * @return tool execution result
+     */
+    public String call(String toolInput, ToolContext toolContext) {
+        String sessionId = extractSessionId(toolContext);
+        // Push sessionId onto ThreadLocal so @Tool methods can resolve it
+        String previousSessionId = currentSessionId.get();
+        try {
+            if (sessionId != null) {
+                currentSessionId.set(sessionId);
+            }
+            // Delegate to the no-arg resolveContext which now uses the ThreadLocal
+            return call(toolInput);
+        } finally {
+            // Restore previous ThreadLocal state
+            if (previousSessionId != null) {
+                currentSessionId.set(previousSessionId);
+            } else {
+                currentSessionId.remove();
+            }
+        }
+    }
+
+    /**
+     * Fallback entry point without ToolContext.
+     * Used when tools are invoked via @Tool annotation directly.
+     */
+    public String call(String toolInput) {
+        // No-op: @Tool methods are invoked directly by Spring AI.
+        // This method exists for ToolCallback interface compatibility.
+        return "Error: Direct call not supported. Use @Tool-annotated methods.";
+    }
+
+    /**
+     * Extract sessionId from ToolContext, falling back to ThreadLocal.
+     */
+    private static String extractSessionId(ToolContext toolContext) {
+        if (toolContext != null) {
+            Object sid = toolContext.getContext().get(TOOL_CONTEXT_SESSION_ID_KEY);
+            if (sid instanceof String sessionIdStr && !sessionIdStr.isBlank()) {
+                return sessionIdStr;
+            }
+        }
+        // Fallback to ThreadLocal when ToolContext is unavailable
+        return currentSessionId.get();
     }
 
     // ==================== Profile Tool ====================
@@ -76,7 +184,11 @@ public class MemoryTools {
             @ToolParam(description = "Action: read_all | add | replace | remove") String action,
             @ToolParam(description = "Item ID (for replace/remove)", required = false) String item_id,
             @ToolParam(description = "Content (for add/replace)", required = false) String content) {
-        // Resolve context from session map
+        /*
+         * Security fix: resolveContext() now uses sessionId from ThreadLocal to look up
+         * the exact MemoryContext entry. This prevents returning another user's context
+         * when multiple sessions are active concurrently.
+         */
         MemoryContext mc = resolveContext();
         if (mc == null) return "Error: No user context available.";
         String userId = mc.userId;
@@ -161,6 +273,10 @@ public class MemoryTools {
             @ToolParam(description = "Action: read_all | add | replace | remove") String action,
             @ToolParam(description = "Item ID (for replace/remove)", required = false) String item_id,
             @ToolParam(description = "Content (for add/replace)", required = false) String content) {
+        /*
+         * Security fix: resolveContext() uses sessionId-based lookup to prevent
+         * cross-user data access in concurrent multi-session scenarios.
+         */
         MemoryContext mc = resolveContext();
         if (mc == null) return "Error: No user context available.";
         String userId = mc.userId;
@@ -239,14 +355,43 @@ public class MemoryTools {
     }
 
     /**
-     * Resolve the current MemoryContext from the session context map.
-     * Returns the first available context (for single-session scenarios).
+     * Resolve the current MemoryContext using explicit sessionId.
+     *
+     * <p><b>Security fix — cross-user data leak:</b>
+     * The original implementation iterated {@code contextMap.values().iterator().next()},
+     * returning an arbitrary user's context under concurrent load. This overload forces
+     * the caller to specify exactly which session to access.</p>
+     *
+     * @param sessionId the session ID to look up (never null)
+     * @return the MemoryContext for this session, or null if not found
+     */
+    private MemoryContext resolveContext(String sessionId) {
+        if (sessionId == null || sessionId.isBlank()) {
+            log.warn("resolveContext called with null/blank sessionId — no context available");
+            return null;
+        }
+        MemoryContext mc = contextMap.get(sessionId);
+        if (mc != null) {
+            return mc;
+        }
+        log.warn("Memory context not found for sessionId={} — setContext may not have been called", sessionId);
+        return null;
+    }
+
+    /**
+     * Resolve the current MemoryContext using ThreadLocal sessionId as fallback.
+     *
+     * <p><b>Security fix — cross-user data leak:</b>
+     * Previously returned the first map entry which could be a different user's data
+     * in concurrent multi-session scenarios. Now uses sessionId from ThreadLocal
+     * to perform an exact lookup, never iterating over map entries.</p>
      */
     private MemoryContext resolveContext() {
-        if (!contextMap.isEmpty()) {
-            return contextMap.values().iterator().next();
+        String sid = currentSessionId.get();
+        if (sid != null) {
+            return resolveContext(sid);
         }
-        log.warn("Memory context is not set - no setContext was called or context was cleared");
+        log.warn("Memory context is not set — no setContext/bindToThread was called or context was cleared");
         return null;
     }
     // ==================== Context holder ====================

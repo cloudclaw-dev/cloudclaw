@@ -6,6 +6,7 @@ import org.springframework.stereotype.Component;
 /**
  * Spring-managed encryption component.
  * Uses cloudclaw.crypto.secret from application config.
+ * Fix H1: Delegates to AesCryptoUtil — single source of truth for AES-GCM encryption.
  */
 @Component
 public class CryptoService {

@@ -146,10 +146,14 @@ public class ChatEngine {
             // Collect final response and save as assistant message
             StringBuilder workflowResponse = new StringBuilder();
             return workflowFlux.doOnNext(chunk -> {
+                // Fix C2: Re-bind SandboxContext in case of thread switch in Reactive stream
+                SandboxContext.bindToThread(sessionId);
                 if ("text".equals(chunk.getType()) && chunk.getContent() != null) {
                     workflowResponse.append(chunk.getContent());
                 }
             }).doOnComplete(() -> {
+                // Fix C2: Re-bind SandboxContext in case of thread switch in Reactive stream
+                SandboxContext.bindToThread(sessionId);
                 String responseText = workflowResponse.toString();
                 if (!responseText.isBlank()) {
                     Message assistantMsg = new Message();
@@ -162,7 +166,7 @@ public class ChatEngine {
                 if (rawHistory.isEmpty() && !responseText.isBlank()) {
                     try {
                         ChatClient chatClient = llmRouteService.getChatClient(config.getModelId());
-                        generateTitleAsync(sessionId, userMessage, chatClient);
+                        generateTitleAsync(sessionId, userId, userMessage, chatClient);
                     } catch (Exception e) {
                         log.debug("Workflow title generation failed (non-critical): {}", e.getMessage());
                     }
@@ -361,12 +365,19 @@ public class ChatEngine {
                             return ChatChunk.text(content != null ? content : "");
                         })
                         .doOnNext(chunk -> {
+                            // Fix C2: Re-bind SandboxContext and MemoryTools context in case of thread switch
+                            SandboxContext.bindToThread(sessionId);
+                            MemoryTools.bindToThread(sessionId);
+                            // Fix: SSE chunk 日志级别从 info 降为 debug，避免高频日志污染生产环境
                             if (chunk.getContent() != null && !chunk.getContent().isEmpty()) {
-                                log.info("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
+                                log.debug("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
                             }
                             sink.tryEmitNext(chunk);
                         })
                         .doOnError(e -> {
+                            // Fix C2: Re-bind context for error handler
+                            SandboxContext.bindToThread(sessionId);
+                            MemoryTools.bindToThread(sessionId);
                             log.error("Chat stream error for session {}: {}", sessionId, e.getMessage());
                             if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException webEx) {
                                 log.error("DeepSeek response body: {}", webEx.getResponseBodyAsString());
@@ -389,6 +400,9 @@ public class ChatEngine {
                             sink.tryEmitError(e);
                         })
                         .doOnComplete(() -> {
+                            // Fix C2: Re-bind context for completion handler
+                            SandboxContext.bindToThread(sessionId);
+                            MemoryTools.bindToThread(sessionId);
                             // Detect transfer via returnDirect mechanism (no text scanning)
                             TransferInfo transferInfo = transferRef.get();
 
@@ -404,7 +418,7 @@ public class ChatEngine {
                                 sessionService.saveMessage(transferMsg);
 
                                 // Update active_agent_path
-                                sessionService.updateActiveAgentPath(sessionId, transferInfo.getTargetPath());
+                                sessionService.updateActiveAgentPath(sessionId, userId, transferInfo.getTargetPath());
 
                                 // Notify frontend with handoff event (shows workflow state in top bar)
                                 String displayName = agentTransferService.getDisplayName(config, transferInfo.getTargetPath());
@@ -560,17 +574,27 @@ public class ChatEngine {
                     return ChatChunk.text(content != null ? content : "");
                 })
                 .doOnNext(chunk -> {
+                            // Fix C2: Re-bind context in transfer agent stream
+                            SandboxContext.bindToThread(sessionId);
+                            MemoryTools.bindToThread(sessionId);
+                            // Fix: SSE chunk 日志级别从 info 降为 debug，避免高频日志污染生产环境
                             if (chunk.getContent() != null && !chunk.getContent().isEmpty()) {
-                                log.info("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
+                                log.debug("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
                             }
                             sink.tryEmitNext(chunk);
                         })
                 .doOnError(e -> {
+                    // Fix C2: Re-bind context for error handler
+                    SandboxContext.bindToThread(sessionId);
+                    MemoryTools.bindToThread(sessionId);
                     log.error("Transfer agent stream error: {}", e.getMessage());
                     ErrorCode errorCode = resolveErrorCode(e);
                     sendErrorEvent(sink, errorCode, e.getMessage());
                 })
                 .doOnComplete(() -> {
+                    // Fix C2: Re-bind context for completion handler
+                    SandboxContext.bindToThread(sessionId);
+                    MemoryTools.bindToThread(sessionId);
                     // Save target agent's response
                     String resp = targetResponse.toString();
                     if (!resp.isBlank()) {
@@ -617,7 +641,7 @@ public class ChatEngine {
             try {
                 Session session = sessionService.getSession(userId, sessionId);
                 if (session.getTitle() == null && fullResponse.length() > 0) {
-                    generateTitleAsync(sessionId, userMessage, chatClient);
+                    generateTitleAsync(sessionId, userId, userMessage, chatClient);
                 }
             } catch (Exception e) {
                 log.debug("Title generation check failed (non-critical): {}", e.getMessage());
@@ -867,7 +891,8 @@ public class ChatEngine {
                         + ", 原因=" + transferInfo.getReason() + "]");
                 sessionService.saveMessage(transferMsg);
 
-                sessionService.updateActiveAgentPath(sessionId, transferInfo.getTargetPath());
+                // Fixed: added userId as second argument to match the 3-parameter method signature
+                sessionService.updateActiveAgentPath(sessionId, userId, transferInfo.getTargetPath());
 
                 // Re-invoke with new agent
                 ResolvedAgent targetAgent = agentTransferService.resolveAgent(config, transferInfo.getTargetPath());
@@ -921,7 +946,7 @@ public class ChatEngine {
             }
 
             if (history.isEmpty() && session.getTitle() == null && !responseText.isBlank()) {
-                generateTitleAsync(sessionId, userMessage, chatClient);
+                generateTitleAsync(sessionId, userId, userMessage, chatClient);
             }
 
             MemoryTools.clearContext(sessionId);
@@ -962,6 +987,8 @@ public class ChatEngine {
             StringBuilder workflowResponse = new StringBuilder();
             workflowEngine.execute(userId, sessionId, userMessage, config)
                     .doOnNext(chunk -> {
+                        // Fix C2: Re-bind SandboxContext in case of thread switch in Reactive stream
+                        SandboxContext.bindToThread(sessionId);
                         if ("text".equals(chunk.getType()) && chunk.getContent() != null) {
                             workflowResponse.append(chunk.getContent());
                         }
@@ -1001,7 +1028,7 @@ public class ChatEngine {
         }
     }
 
-    private void generateTitleAsync(String sessionId, String userMessage, ChatClient chatClient) {
+    private void generateTitleAsync(String sessionId, String userId, String userMessage, ChatClient chatClient) {
         CompletableFuture.runAsync(() -> {
             try {
                 String truncatedMessage = userMessage.substring(0, Math.min(userMessage.length(), 100));
@@ -1014,7 +1041,7 @@ public class ChatEngine {
                         .content();
 
                 if (title != null && !title.isBlank()) {
-                    sessionService.updateTitle(sessionId, title.trim());
+                    sessionService.updateTitle(sessionId, userId, title.trim());
                     log.info("Auto-generated title for session {}: {}", sessionId, title.trim());
                 }
             } catch (Exception e) {

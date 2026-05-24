@@ -39,13 +39,15 @@ public enum ErrorCode {
 
     // Session 5xxx
     SESSION_NOT_FOUND(5001, "session.notFound"),
-    SESSION_ACCESS_DENIED(5002, "session.accessDenied"),
+    // Fix M4: Changed from 5002 to 5003 to avoid conflict with hardcoded 5002 in GlobalExceptionHandler.handleExternalServiceException
+    SESSION_ACCESS_DENIED(5003, "session.accessDenied"),
 
     // Auth 6xxx
     AUTH_INVALID_CREDENTIALS(6001, "auth.invalidCredentials"),
     AUTH_ACCOUNT_DISABLED(6002, "auth.accountDisabled"),
     AUTH_TOKEN_EXPIRED(6003, "auth.tokenExpired"),
     AUTH_INVALID_TOKEN(6004, "auth.invalidToken"),
+    AUTH_RATE_LIMITED(6005, "auth.rateLimited"),
 
     // Skill 7xxx
     SKILL_NOT_FOUND(7001, "skill.notFound"),
@@ -59,7 +61,10 @@ public enum ErrorCode {
     // File 9xxx
     FILE_NOT_FOUND(9001, "file.notFound"),
     FILE_ALREADY_EXISTS(9002, "file.alreadyExists"),
-    FILE_INVALID_FORMAT(9003, "file.invalidFormat");
+    FILE_INVALID_FORMAT(9003, "file.invalidFormat"),
+
+    // Security 10xxx
+    DECRYPTION_FAILED(10001, "security.decryptionFailed");
 
     private final int code;
     private final String i18nKey;

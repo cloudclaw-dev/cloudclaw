@@ -82,7 +82,7 @@ public class HandoffExecutor {
                     // Use the first node as the starting node for handoff mode
                     activeNode = resolvedNodes.get(0);
                     sink.tryEmitNext(ChatChunk.handoffEvent("root", activeNode.getDisplayName(), "Starting handoff session"));
-                    sessionService.updateActiveAgentPath(sessionId, activeNode.getNodeId());
+                    sessionService.updateActiveAgentPath(sessionId, userId, activeNode.getNodeId());
                 } else {
                     activeNode = resolvedNodes.stream()
                             .filter(n -> n.getNodeId().equals(activeNodeId))
@@ -156,7 +156,7 @@ public class HandoffExecutor {
                     sessionService.saveMessage(transferMsg);
 
                     // Update session active path
-                    sessionService.updateActiveAgentPath(sessionId, targetNodeId);
+                    sessionService.updateActiveAgentPath(sessionId, userId, targetNodeId);
                     log.info("Handoff: {} → {} (reason: {}, depth={})",
                             activeNode.getName(), targetNode.getName(), handoffReason.get(), depth);
 
@@ -166,7 +166,7 @@ public class HandoffExecutor {
 
                 // Auto-return to root if configured and current agent is not root
                 if (autoReturn) {
-                    sessionService.updateActiveAgentPath(sessionId, "root");
+                    sessionService.updateActiveAgentPath(sessionId, userId, "root");
                     log.info("Handoff: auto-return to root");
                 }
 

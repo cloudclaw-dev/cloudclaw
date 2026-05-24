@@ -11,4 +11,9 @@ import java.util.UUID;
  */
 public interface AdminUserRepository extends JpaRepository<User, UUID> {
     boolean existsByUsername(String username);
+
+    // Fix M3: Add email uniqueness check for business layer validation
+    boolean existsByEmail(String email);
+
+    boolean existsByEmailAndIdNot(String email, UUID id);
 }
