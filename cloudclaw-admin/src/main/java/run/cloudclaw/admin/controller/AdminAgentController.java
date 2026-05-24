@@ -9,6 +9,7 @@ import run.cloudclaw.common.config.ConfigChangeEvent;
 import run.cloudclaw.common.config.ConfigChangeNotifier;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.Agent;
 import run.cloudclaw.common.model.AgentMcpServer;
 import run.cloudclaw.common.model.AgentSkill;
@@ -125,7 +126,7 @@ public class AdminAgentController {
 
         UUID agentId = UUID.fromString(id);
         Agent agent = agentRepository.findById(agentId)
-                .orElseThrow(() -> new BusinessException(404, "Agent not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_NOT_FOUND, id));
         populateBindings(agent);
 
         return Result.ok(agent);
@@ -139,7 +140,7 @@ public class AdminAgentController {
 
         UUID agentId = UUID.fromString(id);
         Agent agent = agentRepository.findById(agentId)
-                .orElseThrow(() -> new BusinessException(404, "Agent not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_NOT_FOUND, id));
 
         if (request.getName() != null) agent.setName(request.getName());
         if (request.getDescription() != null) agent.setDescription(request.getDescription());
@@ -220,7 +221,7 @@ public class AdminAgentController {
 
         UUID agentId = UUID.fromString(id);
         if (!agentRepository.existsById(agentId)) {
-            throw new BusinessException(404, "Agent not found: " + id);
+            throw new BusinessException(ErrorCode.AGENT_NOT_FOUND, id);
         }
 
         List<AgentMcpServer> mcpBindings = agentMcpServerRepository.findByAgentId(agentId);
@@ -266,7 +267,7 @@ public class AdminAgentController {
         if (effectiveBackend == null) effectiveBackend = "LOCAL";
 
         if ("LOCAL".equals(effectiveBackend) || "DOCKER".equals(effectiveBackend)) {
-            throw new BusinessException(400, "SESSION mode is only supported with E2B backend. " + effectiveBackend + " only supports STATELESS mode.");
+            throw new BusinessException(ErrorCode.AGENT_SESSION_MODE_UNSUPPORTED, "SESSION mode is only supported with E2B backend. " + effectiveBackend + " only supports STATELESS mode.");
         }
     }
 }

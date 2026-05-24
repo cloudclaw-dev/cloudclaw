@@ -2,6 +2,7 @@ package run.cloudclaw.llm.service;
 
 import run.cloudclaw.common.config.ConfigChangeEvent;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.llm.model.LlmCredential;
 import run.cloudclaw.llm.model.LlmModel;
 import run.cloudclaw.llm.model.LlmProvider;
@@ -62,9 +63,7 @@ public class LlmRouteService {
     }
 
     /**
-     * 监听配置变更事件，清除对应的 LLM 客户端缓存。
-     * 当 llm model/provider/credential 变更时触发。
-     */
+     * 监听配置变更事件，清除对应的 LLM 客户端缓存�?     * �?llm model/provider/credential 变更时触发�?     */
     @EventListener
     public void onConfigChange(ConfigChangeEvent event) {
         if ("llm".equals(event.entityType())) {
@@ -90,10 +89,10 @@ public class LlmRouteService {
 
     private ChatClient createChatClient(String modelId) {
         LlmModel model = modelRepository.findById(modelId)
-                .orElseThrow(() -> new BusinessException(404, "Model not found: " + modelId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, modelId));
 
         LlmProvider provider = providerRepository.findById(model.getProviderId())
-                .orElseThrow(() -> new BusinessException(404, "Provider not found: " + model.getProviderId()));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LLM_PROVIDER_NOT_FOUND, model.getProviderId()));
 
         LlmCredential credential = credentialService.acquireCredential(provider.getId());
         String apiKey = credentialService.decryptKey(credential);
@@ -110,7 +109,7 @@ public class LlmRouteService {
         return switch (provider.getProviderType()) {
             case "openai_compatible" -> createOpenAiCompatible(provider, apiKey, model, defaultParams);
             case "ollama" -> createOllamaCompatible(provider, model, defaultParams);
-            default -> throw new BusinessException(400, "Unsupported provider type: " + provider.getProviderType());
+            default -> throw new BusinessException(ErrorCode.LLM_UNSUPPORTED_PROVIDER, provider.getProviderType());
         };
     }
 
@@ -175,14 +174,14 @@ public class LlmRouteService {
         String completionsPath = "/v1/chat/completions"; // default
 
         // Auto-detect version path from baseUrl for non-standard providers
-        // e.g. https://open.bigmodel.cn/api/coding/paas/v4 → completionsPath = /v4/chat/completions
+        // e.g. https://open.bigmodel.cn/api/coding/paas/v4 �?completionsPath = /v4/chat/completions
         java.util.regex.Matcher versionMatcher = java.util.regex.Pattern.compile("^(.+)/(v\\d+)$").matcher(baseUrl);
         if (versionMatcher.find()) {
             String version = versionMatcher.group(2);
             if (!"v1".equals(version)) {
                 baseUrl = versionMatcher.group(1);
                 completionsPath = "/" + version + "/chat/completions";
-                log.info("Detected non-standard version path: {} → completionsPath={}", version, completionsPath);
+                log.info("Detected non-standard version path: {} �?completionsPath={}", version, completionsPath);
             }
         }
 

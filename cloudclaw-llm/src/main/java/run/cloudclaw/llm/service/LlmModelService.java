@@ -1,6 +1,7 @@
 package run.cloudclaw.llm.service;
 
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.llm.model.LlmModel;
 import run.cloudclaw.llm.repository.LlmModelRepository;
 import lombok.RequiredArgsConstructor;
@@ -27,7 +28,7 @@ public class LlmModelService {
 
     public LlmModel getById(String id) {
         return modelRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(404, "Model not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LLM_MODEL_NOT_FOUND, id));
     }
 
     @Transactional

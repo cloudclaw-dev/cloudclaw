@@ -4,6 +4,8 @@ import run.cloudclaw.common.model.ProfileItem;
 import run.cloudclaw.common.model.SessionItem;
 import run.cloudclaw.common.repository.ProfileItemRepository;
 import run.cloudclaw.common.repository.SessionItemRepository;
+import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Service;
@@ -49,9 +51,9 @@ public class MemoryService {
     public ProfileItem updateProfileItem(String userId, String itemId, String content) {
         log.info("Updating profile item: {} for user: {}", itemId, userId);
         ProfileItem item = profileItemRepository.findById(itemId)
-                .orElseThrow(() -> new run.cloudclaw.common.exception.BusinessException(404, "Profile item not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMORY_NOT_FOUND));
         if (!item.getUserId().equals(userId)) {
-            throw new run.cloudclaw.common.exception.BusinessException(403, "Not authorized");
+            throw new BusinessException(ErrorCode.MEMORY_ACCESS_DENIED);
         }
         item.setContent(content);
         item.setUpdatedAt(LocalDateTime.now());
@@ -62,9 +64,9 @@ public class MemoryService {
     public void deleteProfileItem(String userId, String itemId) {
         log.info("Deleting profile item: {} for user: {}", itemId, userId);
         ProfileItem item = profileItemRepository.findById(itemId)
-                .orElseThrow(() -> new run.cloudclaw.common.exception.BusinessException(404, "Profile item not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMORY_NOT_FOUND));
         if (!item.getUserId().equals(userId)) {
-            throw new run.cloudclaw.common.exception.BusinessException(403, "Not authorized");
+            throw new BusinessException(ErrorCode.MEMORY_ACCESS_DENIED);
         }
         profileItemRepository.delete(item);
     }
@@ -124,9 +126,9 @@ public class MemoryService {
     public void deleteSessionItem(String userId, String itemId) {
         log.info("Deleting session item: {} for user: {}", itemId, userId);
         SessionItem item = sessionItemRepository.findById(itemId)
-                .orElseThrow(() -> new run.cloudclaw.common.exception.BusinessException(404, "Session item not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.MEMORY_NOT_FOUND));
         if (!item.getUserId().equals(userId)) {
-            throw new run.cloudclaw.common.exception.BusinessException(403, "Not authorized");
+            throw new BusinessException(ErrorCode.MEMORY_ACCESS_DENIED);
         }
         sessionItemRepository.delete(item);
     }

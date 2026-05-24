@@ -14,21 +14,21 @@
         size="large"
         @submit.prevent="handleLogin"
       >
-        <el-form-item label="Username" prop="username">
+        <el-form-item :label="t('login.username')" prop="username">
           <el-input
             v-model="loginForm.username"
-            placeholder="Enter your username"
+            :placeholder="t('login.enterUsername')"
             prefix-icon="User"
             clearable
             @keyup.enter="handleLogin"
           />
         </el-form-item>
 
-        <el-form-item label="Password" prop="password">
+        <el-form-item :label="t('login.password')" prop="password">
           <el-input
             v-model="loginForm.password"
             type="password"
-            placeholder="Enter your password"
+            :placeholder="t('login.enterPassword')"
             prefix-icon="Lock"
             show-password
             @keyup.enter="handleLogin"
@@ -42,7 +42,7 @@
             :loading="loading"
             @click="handleLogin"
           >
-            {{ loading ? 'Signing in...' : 'Sign In' }}
+            {{ loading ? t('login.signingIn') : t('login.signIn') }}
           </el-button>
         </el-form-item>
       </el-form>
@@ -50,8 +50,8 @@
       <div class="login-footer">
         <el-switch
           v-model="isDark"
-          active-text="Dark"
-          inactive-text="Light"
+          :active-text="t('login.dark')"
+          :inactive-text="t('login.light')"
           @change="toggleTheme"
         />
       </div>
@@ -63,10 +63,12 @@
 import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
+import { useI18n } from 'vue-i18n'
 import type { FormInstance, FormRules } from 'element-plus'
 import { authApi } from '@/api/chat'
 
 const router = useRouter()
+const { t } = useI18n()
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
 const isDark = ref(false)
@@ -78,12 +80,12 @@ const loginForm = reactive({
 
 const loginRules: FormRules = {
   username: [
-    { required: true, message: 'Please enter your username', trigger: 'blur' },
-    { min: 2, max: 50, message: 'Username must be 2-50 characters', trigger: 'blur' }
+    { required: true, message: t('login.usernameRequired'), trigger: 'blur' },
+    { min: 2, max: 50, message: t('login.usernameLength'), trigger: 'blur' }
   ],
   password: [
-    { required: true, message: 'Please enter your password', trigger: 'blur' },
-    { min: 6, max: 100, message: 'Password must be at least 6 characters', trigger: 'blur' }
+    { required: true, message: t('login.passwordRequired'), trigger: 'blur' },
+    { min: 6, max: 100, message: t('login.passwordLength'), trigger: 'blur' }
   ]
 }
 
@@ -110,12 +112,12 @@ const handleLogin = async () => {
       })
 
       if (res.code !== 0 && res.code !== 200) {
-        ElMessage.error(res.message || 'Login failed')
+        ElMessage.error(res.message || t('login.loginFailed'))
         return
       }
       const data = res.data
       if (!data?.accessToken) {
-        ElMessage.error('Login failed: no token received')
+        ElMessage.error(t('login.noToken'))
         return
       }
       localStorage.setItem('access_token', data.accessToken)
@@ -133,7 +135,7 @@ const handleLogin = async () => {
         }
       } catch {}
 
-      ElMessage.success('Login successful')
+      ElMessage.success(t('login.loginSuccess'))
       router.push('/')
     } catch (error: any) {
       // Error already handled by axios interceptor

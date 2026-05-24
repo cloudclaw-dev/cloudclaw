@@ -41,8 +41,9 @@ public class AdminStatsController {
     public Result<?> getSystemInfo() {
         String[] profiles = environment.getActiveProfiles();
         String mode = (profiles.length > 0) ? profiles[0] : "standalone";
+        String version = environment.getProperty("cloudclaw.version", "unknown");
         return Result.ok(java.util.Map.of(
-            "version", "1.0.1",
+            "version", version,
             "mode", mode
         ));
     }

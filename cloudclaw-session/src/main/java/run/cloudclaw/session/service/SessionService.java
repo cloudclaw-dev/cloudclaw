@@ -4,6 +4,7 @@ import run.cloudclaw.common.dto.MessageVo;
 import run.cloudclaw.common.dto.PageResult;
 import run.cloudclaw.common.dto.PollResult;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.Message;
 import run.cloudclaw.common.model.Session;
 import run.cloudclaw.session.cache.SessionCache;
@@ -76,11 +77,11 @@ public class SessionService {
     @Transactional(readOnly = true)
     public Session getSession(String userId, String sessionId) {
         Session session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new BusinessException(404, "Session not found: " + sessionId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND, sessionId));
 
         if (!session.getUserId().equals(userId)) {
             log.warn("User {} attempted to access session {} owned by {}", userId, sessionId, session.getUserId());
-            throw new BusinessException(403, "Access denied to session: " + sessionId);
+            throw new BusinessException(ErrorCode.SESSION_ACCESS_DENIED, sessionId);
         }
 
         return session;
@@ -145,7 +146,7 @@ public class SessionService {
     @Transactional
     public void updateTitle(String sessionId, String title) {
         Session session = sessionRepository.findById(sessionId)
-                .orElseThrow(() -> new BusinessException(404, "Session not found: " + sessionId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.SESSION_NOT_FOUND, sessionId));
         session.setTitle(title);
         session.setUpdatedAt(LocalDateTime.now());
         sessionRepository.save(session);

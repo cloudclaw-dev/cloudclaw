@@ -1,5 +1,8 @@
 package run.cloudclaw.agent.config;
 
+import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
+
 import run.cloudclaw.llm.model.LlmModel;
 import run.cloudclaw.llm.repository.LlmModelRepository;
 import run.cloudclaw.mcp.repository.AgentMcpServerRepository;
@@ -51,7 +54,7 @@ public class AgentConfigService {
         Agent agent = agentRepository.findById(uuid)
                 .orElseThrow(() -> {
                     log.warn("Agent not found: {}", agentId);
-                    return new run.cloudclaw.common.exception.BusinessException("Agent not found: " + agentId);
+                    return new BusinessException(ErrorCode.AGENT_NOT_FOUND, agentId);
                 });
 
         AgentConfig config = resolveConfig(agent);

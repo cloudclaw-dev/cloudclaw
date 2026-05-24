@@ -17,6 +17,7 @@ import run.cloudclaw.sandbox.core.SandboxMode;
 import run.cloudclaw.agent.prompt.PromptAssembler;
 import run.cloudclaw.common.dto.AsyncChatResult;
 import run.cloudclaw.common.dto.ChatChunk;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.McpServer;
 import run.cloudclaw.common.model.Message;
 import run.cloudclaw.common.model.Session;
@@ -408,6 +409,8 @@ public class ChatEngine {
                                     log.error("Failed to save partial response: {}", saveErr.getMessage());
                                 }
                             }
+                            ErrorCode errorCode = resolveErrorCode(e);
+                            sendErrorEvent(sink, errorCode, e.getMessage());
                             sink.tryEmitError(e);
                         })
                         .doOnComplete(() -> {
@@ -471,6 +474,8 @@ public class ChatEngine {
                         .subscribe();
             } catch (Exception e) {
                 log.error("Chat thread error for session {}: {}", sessionId, e.getMessage(), e);
+                ErrorCode errorCode = resolveErrorCode(e);
+                sendErrorEvent(sink, errorCode, e.getMessage());
                 sink.tryEmitError(e);
             } finally {
                 closeMcpClients(createdMcpClients);
@@ -585,6 +590,8 @@ public class ChatEngine {
                 .doOnNext(chunk -> sink.tryEmitNext(chunk))
                 .doOnError(e -> {
                     log.error("Transfer agent stream error: {}", e.getMessage());
+                    ErrorCode errorCode = resolveErrorCode(e);
+                    sendErrorEvent(sink, errorCode, e.getMessage());
                 })
                 .doOnComplete(() -> {
                     // Save target agent's response
@@ -885,6 +892,34 @@ public class ChatEngine {
             }
         }
         return cjk + (ascii / 4) + 1;
+    }
+
+    /**
+     * Send a structured SSE error event to the frontend.
+     * The error event contains type='error', numeric errorCode, i18nKey for frontend localization,
+     * and an optional detail message. The frontend can parse this JSON to show localized errors.
+     */
+    private void sendErrorEvent(Sinks.Many<ChatChunk> sink, ErrorCode code, String detail) {
+        sink.tryEmitNext(ChatChunk.error(code, detail));
+    }
+
+    /**
+     * Resolve an ErrorCode from an exception.
+     * Maps BusinessException (which already carries an ErrorCode) and common exception types
+     * to the appropriate ErrorCode for structured SSE error events.
+     */
+    private ErrorCode resolveErrorCode(Throwable e) {
+        if (e instanceof run.cloudclaw.common.exception.BusinessException be) {
+            // If the BusinessException was created with an ErrorCode, extract its numeric code
+            int code = be.getCode();
+            for (ErrorCode ec : ErrorCode.values()) {
+                if (ec.getCode() == code) {
+                    return ec;
+                }
+            }
+        }
+        // Default to LLM_CALL_FAILED for unrecognized exceptions in the chat pipeline
+        return ErrorCode.LLM_CALL_FAILED;
     }
 
     // ========== Async Chat Mode ==========

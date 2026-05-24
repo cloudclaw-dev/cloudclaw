@@ -3,6 +3,7 @@ package run.cloudclaw.user.controller;
 import run.cloudclaw.auth.security.AuthUser;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.Agent;
 import run.cloudclaw.user.repository.AgentQueryRepository;
 import lombok.extern.slf4j.Slf4j;
@@ -66,9 +67,9 @@ public class AgentController {
     public Result<Agent> getAgent(@AuthUser String userId, @PathVariable String id) {
         log.debug("User [{}] getting agent [{}]", userId, id);
         Agent agent = agentQueryRepository.findById(UUID.fromString(id))
-                .orElseThrow(() -> new BusinessException(404, "Agent not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_NOT_FOUND, id));
         if (!agent.getEnabled()) {
-            throw new BusinessException(404, "Agent not found: " + id);
+            throw new BusinessException(ErrorCode.AGENT_NOT_FOUND, id);
         }
         // Clear system prompt before returning to the user
         agent.setSystemPrompt(null);

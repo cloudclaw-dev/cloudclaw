@@ -5,6 +5,7 @@ import run.cloudclaw.common.config.ConfigChangeEvent;
 import run.cloudclaw.common.config.ConfigChangeNotifier;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.Skill;
 import run.cloudclaw.common.model.SkillFile;
 import run.cloudclaw.skill.service.SkillService;
@@ -46,13 +47,13 @@ public class AdminSkillController {
 
         // Validate file size (max 50MB)
         if (file.getSize() > 50 * 1024 * 1024) {
-            throw new BusinessException(400, "File too large. Maximum size is 50MB.");
+            throw new BusinessException(ErrorCode.SKILL_FILE_TOO_LARGE);
         }
 
         // Validate file type
         String filename = file.getOriginalFilename();
         if (filename == null || !filename.toLowerCase().endsWith(".zip")) {
-            throw new BusinessException(400, "Only .zip files are accepted.");
+            throw new BusinessException(ErrorCode.SKILL_INVALID_PACKAGE);
         }
 
         Skill skill = skillService.uploadSkillZip(file);
@@ -104,7 +105,7 @@ public class AdminSkillController {
         // Extract the file path from the request URI
         // Using query param 'path' as a fallback since /** doesn't work well in all cases
         if (path == null || path.isEmpty()) {
-            throw new BusinessException("File path is required");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "File path is required");
         }
         return Result.ok(skillService.getFile(id, path));
     }
@@ -118,7 +119,7 @@ public class AdminSkillController {
         String filePath = body.get("path");
         String content = body.get("content");
         if (filePath == null || filePath.isEmpty()) {
-            throw new BusinessException("File path is required");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "File path is required");
         }
         try {
             return Result.ok(skillService.updateFile(id, filePath, content));

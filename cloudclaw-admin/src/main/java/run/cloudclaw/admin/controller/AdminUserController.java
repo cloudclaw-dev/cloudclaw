@@ -7,6 +7,7 @@ import run.cloudclaw.common.dto.PageResult;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.dto.UserDTO;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.User;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
@@ -48,7 +49,7 @@ public class AdminUserController {
 
         // Check username uniqueness
         if (userRepository.existsByUsername(request.getUsername())) {
-            throw new BusinessException(409, "Username already exists: " + request.getUsername());
+            throw new BusinessException(ErrorCode.CONFLICT, request.getUsername());
         }
 
         User user = new User();
@@ -100,7 +101,7 @@ public class AdminUserController {
 
         UUID userId = UUID.fromString(id);
         User user = userRepository.findById(userId)
-                .orElseThrow(() -> new BusinessException(404, "User not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, id));
 
         if (request.getEmail() != null) {
             user.setEmail(request.getEmail());
@@ -133,7 +134,7 @@ public class AdminUserController {
 
         UUID userId = UUID.fromString(id);
         if (!userRepository.existsById(userId)) {
-            throw new BusinessException(404, "User not found: " + id);
+            throw new BusinessException(ErrorCode.NOT_FOUND, id);
         }
 
         userRepository.deleteById(userId);

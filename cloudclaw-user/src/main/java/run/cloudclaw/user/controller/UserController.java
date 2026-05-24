@@ -4,6 +4,7 @@ import run.cloudclaw.auth.security.AuthUser;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.dto.UserDTO;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.User;
 import run.cloudclaw.memory.service.MemoryService;
 import run.cloudclaw.user.repository.UserQueryRepository;
@@ -51,7 +52,7 @@ public class UserController {
     public Result<UserDTO> getCurrentUser(@AuthUser String userId) {
         log.debug("Getting current user info for [{}]", userId);
         User user = userQueryRepository.findById(UUID.fromString(userId))
-                .orElseThrow(() -> new BusinessException(404, "User not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "User not found"));
 
         UserDTO dto = new UserDTO();
         dto.setId(user.getId().toString());
@@ -105,17 +106,17 @@ public class UserController {
         String oldPassword = request.get("oldPassword");
         String newPassword = request.get("newPassword");
         if (oldPassword == null || oldPassword.isBlank() || newPassword == null || newPassword.isBlank()) {
-            throw new BusinessException(400, "oldPassword and newPassword are required");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "oldPassword and newPassword are required");
         }
         if (newPassword.length() < 6) {
-            throw new BusinessException(400, "New password must be at least 6 characters");
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "New password must be at least 6 characters");
         }
 
         User user = userQueryRepository.findById(UUID.fromString(userId))
-                .orElseThrow(() -> new BusinessException(404, "User not found"));
+                .orElseThrow(() -> new BusinessException(ErrorCode.NOT_FOUND, "User not found"));
 
         if (!passwordEncoder.matches(oldPassword, user.getPassword())) {
-            throw new BusinessException(400, "Current password is incorrect");
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
         user.setPassword(passwordEncoder.encode(newPassword));

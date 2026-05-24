@@ -677,7 +677,7 @@ const createNewSession = async () => {
     if (newSession?.id) {
       selectSession(newSession.id)
     }
-    ElMessage.success('New conversation created')
+    ElMessage.success(t('chat.sessionCreated'))
   } catch (e) {
     // Error handled by interceptor
   }
@@ -698,7 +698,7 @@ const deleteSession = async (sessionId: string) => {
       currentSessionId.value = ''
       messages.value = []
     }
-    ElMessage.success('Conversation deleted')
+    ElMessage.success(t('chat.sessionDeleted'))
   } catch (e) {
     // Cancelled or error
   }
