@@ -37,6 +37,7 @@ spring:
           model: ${AI_MODEL:gpt-4o}
 
 cloudclaw:
+  version: '@project.version@'
   mode: standalone
   jwt:
     secret: ${JWT_SECRET:cloudclaw-default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha}

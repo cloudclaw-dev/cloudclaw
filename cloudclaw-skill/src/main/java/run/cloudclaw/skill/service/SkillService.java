@@ -1,6 +1,7 @@
 package run.cloudclaw.skill.service;
 
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.AgentSkill;
 import run.cloudclaw.common.model.Skill;
 import run.cloudclaw.common.model.SkillFile;
@@ -64,7 +65,7 @@ public class SkillService {
     public Skill getSkill(String skillId) {
         UUID id = UUID.fromString(skillId);
         return skillRepository.findById(id)
-                .orElseThrow(() -> new BusinessException("Skill not found: " + skillId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.SKILL_NOT_FOUND, skillId));
     }
 
     @Transactional
@@ -112,7 +113,7 @@ public class SkillService {
     public Skill uploadSkillZip(MultipartFile zipFile) {
         String filename = zipFile.getOriginalFilename();
         if (filename == null || (!filename.endsWith(".zip"))) {
-            throw new BusinessException("Only .zip files are supported");
+            throw new BusinessException(ErrorCode.SKILL_INVALID_PACKAGE);
         }
 
         // Derive skill name from filename: "my-skill.zip" → "my-skill"
@@ -121,13 +122,13 @@ public class SkillService {
         try {
             List<FileEntry> entries = parseZip(zipFile.getBytes());
             if (entries.isEmpty()) {
-                throw new BusinessException("ZIP is empty");
+                throw new BusinessException(ErrorCode.SKILL_INVALID_PACKAGE, "ZIP is empty");
             }
 
             // Find SKILL.md
             FileEntry skillMd = findSkillMd(entries);
             if (skillMd == null) {
-                throw new BusinessException("SKILL.md not found in ZIP");
+                throw new BusinessException(ErrorCode.SKILL_INVALID_PACKAGE, "SKILL.md not found in ZIP");
             }
 
             // Parse SKILL.md: frontmatter + body
@@ -167,7 +168,7 @@ public class SkillService {
             return skill;
 
         } catch (IOException e) {
-            throw new BusinessException("Failed to read ZIP: " + e.getMessage());
+            throw new BusinessException(ErrorCode.SKILL_INVALID_PACKAGE, "Failed to read ZIP: " + e.getMessage());
         }
     }
 
@@ -183,7 +184,7 @@ public class SkillService {
     public SkillFile getFile(String skillId, String filePath) {
         UUID id = UUID.fromString(skillId);
         return skillFileRepository.findBySkillIdAndFilePath(id, filePath)
-                .orElseThrow(() -> new BusinessException("File not found: " + filePath));
+                .orElseThrow(() -> new BusinessException(ErrorCode.FILE_NOT_FOUND, filePath));
     }
 
     @Transactional
@@ -198,7 +199,7 @@ public class SkillService {
         UUID id = UUID.fromString(skillId);
         // Check if file already exists
         skillFileRepository.findBySkillIdAndFilePath(id, filePath)
-                .ifPresent(f -> { throw new BusinessException("File already exists: " + filePath); });
+                .ifPresent(f -> { throw new BusinessException(ErrorCode.FILE_ALREADY_EXISTS, filePath); });
 
         Skill skill = getSkill(skillId);
         SkillFile sf = new SkillFile();

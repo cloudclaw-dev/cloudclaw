@@ -1,6 +1,9 @@
 import axios from 'axios'
 import { ElMessage } from 'element-plus'
 import router from '@/router'
+import i18n from '@/i18n'
+
+const t = i18n.global.t
 
 const api = axios.create({
   baseURL: '/api',
@@ -28,8 +31,9 @@ api.interceptors.response.use(
   response => {
     const data = response.data
     if (data.code && data.code !== 200) {
-      ElMessage.error(data.message || 'Request failed')
-      return Promise.reject(new Error(data.message))
+      const msg = data.i18nKey ? t(data.i18nKey, data.args) : (data.message || t('common.requestFailed'))
+      ElMessage.error(msg)
+      return Promise.reject(new Error(msg))
     }
     return data
   },
@@ -79,14 +83,19 @@ api.interceptors.response.use(
         localStorage.removeItem('refresh_token')
         pendingRequests = []
         router.push('/login')
-        ElMessage.error('Session expired, please login again')
+        ElMessage.error(t('login.expired'))
         return Promise.reject(refreshError)
       } finally {
         isRefreshing = false
       }
     }
 
-    ElMessage.error(error.response?.data?.message || 'Request failed')
+    const data = error.response?.data
+    if (data?.i18nKey) {
+      ElMessage.error(t(data.i18nKey, data.args))
+    } else {
+      ElMessage.error(data?.message || t('common.requestFailed'))
+    }
     return Promise.reject(error)
   }
 )

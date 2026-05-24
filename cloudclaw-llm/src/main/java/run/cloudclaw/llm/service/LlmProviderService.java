@@ -1,5 +1,8 @@
 package run.cloudclaw.llm.service;
 
+import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
+
 import run.cloudclaw.llm.model.LlmProvider;
 import run.cloudclaw.llm.repository.LlmProviderRepository;
 import lombok.RequiredArgsConstructor;
@@ -24,7 +27,7 @@ public class LlmProviderService {
 
     public LlmProvider getById(String id) {
         return providerRepository.findById(id)
-                .orElseThrow(() -> new run.cloudclaw.common.exception.BusinessException(404, "Provider not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LLM_PROVIDER_NOT_FOUND, id));
     }
 
     @Transactional

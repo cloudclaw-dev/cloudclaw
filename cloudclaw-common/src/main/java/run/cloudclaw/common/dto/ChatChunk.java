@@ -57,25 +57,44 @@ public class ChatChunk {
     private List<String> plan;
     /** From agent (for transfer events) */
     private String from;
+    /** Error code (for error events) */
+    private Integer errorCode;
+    /** i18n key for frontend error localization (for error events) */
+    private String errorI18nKey;
+    /** Error detail message (for error events) */
+    private String errorDetail;
 
     public static ChatChunk text(String content) {
         return new ChatChunk(content, false, false, "text", null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ChatChunk toolCall(String toolName, String args) {
         return new ChatChunk(args, true, false, "tool_call", toolName, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ChatChunk toolResult(String toolName, String result) {
         return new ChatChunk(result, true, false, "tool_result", toolName, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ChatChunk done() {
         return new ChatChunk(null, false, true, "done", null, null, null, null, null, null,
-                null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null);
+    }
+
+    /** Create an error event chunk with structured error information for SSE. */
+    public static ChatChunk error(run.cloudclaw.common.exception.ErrorCode code, String detail) {
+        return ChatChunk.builder()
+                .content("")
+                .toolCall(false)
+                .done(false)
+                .type("error")
+                .errorCode(code.getCode())
+                .errorI18nKey(code.getI18nKey())
+                .errorDetail(detail)
+                .build();
     }
 
     /** Create a workflow event chunk */

@@ -7,6 +7,7 @@ import run.cloudclaw.common.config.ConfigChangeEvent;
 import run.cloudclaw.common.config.ConfigChangeNotifier;
 import run.cloudclaw.common.dto.Result;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.McpServer;
 import run.cloudclaw.common.util.CryptoService;
 import com.fasterxml.jackson.core.JsonProcessingException;
@@ -62,7 +63,7 @@ public class AdminMcpServerController {
                 server.setEnv(cryptoService.encrypt(envJson));
             }
         } catch (JsonProcessingException e) {
-            throw new BusinessException(400, "Failed to serialize args/env to JSON: " + e.getMessage());
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Failed to serialize args/env to JSON: " + e.getMessage());
         }
 
         McpServer saved = mcpServerRepository.save(server);
@@ -86,7 +87,7 @@ public class AdminMcpServerController {
 
         UUID serverId = UUID.fromString(id);
         McpServer server = mcpServerRepository.findById(serverId)
-                .orElseThrow(() -> new BusinessException(404, "MCP server not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.MCP_SERVER_NOT_FOUND, id));
 
         if (request.getName() != null) server.setName(request.getName());
         if (request.getDescription() != null) server.setDescription(request.getDescription());
@@ -103,7 +104,7 @@ public class AdminMcpServerController {
                 server.setEnv(cryptoService.encrypt(envJson));
             }
         } catch (JsonProcessingException e) {
-            throw new BusinessException(400, "Failed to serialize args/env to JSON: " + e.getMessage());
+            throw new BusinessException(ErrorCode.BAD_REQUEST, "Failed to serialize args/env to JSON: " + e.getMessage());
         }
 
         McpServer saved = mcpServerRepository.save(server);
@@ -117,7 +118,7 @@ public class AdminMcpServerController {
         log.info("Admin deleting MCP server with id: {}", id);
         UUID serverId = UUID.fromString(id);
         if (!mcpServerRepository.existsById(serverId)) {
-            throw new BusinessException(404, "MCP server not found: " + id);
+            throw new BusinessException(ErrorCode.MCP_SERVER_NOT_FOUND, id);
         }
         mcpServerRepository.deleteById(serverId);
         log.info("MCP server deleted successfully: {}", id);
@@ -131,7 +132,7 @@ public class AdminMcpServerController {
 
         UUID serverId = UUID.fromString(id);
         McpServer server = mcpServerRepository.findById(serverId)
-                .orElseThrow(() -> new BusinessException(404, "MCP server not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.MCP_SERVER_NOT_FOUND, id));
 
         Map<String, Object> result = new HashMap<>();
 

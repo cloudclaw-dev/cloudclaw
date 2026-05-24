@@ -1,6 +1,7 @@
 package run.cloudclaw.llm.service;
 
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.llm.encryption.AesEncryptionService;
 import run.cloudclaw.llm.model.LlmCredential;
 import run.cloudclaw.llm.repository.LlmCredentialRepository;
@@ -30,7 +31,7 @@ public class LlmCredentialService {
 
     public LlmCredential getById(String id) {
         return credentialRepository.findById(id)
-                .orElseThrow(() -> new BusinessException(404, "Credential not found: " + id));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LLM_CREDENTIAL_NOT_FOUND, id));
     }
 
     @Transactional
@@ -69,7 +70,7 @@ public class LlmCredentialService {
         return credentials.stream()
                 .filter(c -> c.getExpiresAt() == null || c.getExpiresAt().isAfter(now))
                 .findFirst()
-                .orElseThrow(() -> new BusinessException(400, "No available credential for provider: " + providerId));
+                .orElseThrow(() -> new BusinessException(ErrorCode.LLM_NO_AVAILABLE_CREDENTIAL, providerId));
     }
 
     public String decryptKey(LlmCredential credential) {

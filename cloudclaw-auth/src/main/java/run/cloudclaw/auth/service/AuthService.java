@@ -7,6 +7,7 @@ import run.cloudclaw.common.dto.LoginRequest;
 import run.cloudclaw.common.dto.LoginResponse;
 import run.cloudclaw.common.dto.RefreshRequest;
 import run.cloudclaw.common.exception.BusinessException;
+import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
@@ -45,17 +46,17 @@ public class AuthService {
         User user = userRepository.findByUsername(request.getUsername())
                 .orElseThrow(() -> {
                     log.warn("Login failed: user not found for username: {}", request.getUsername());
-                    return new BusinessException("Invalid username or password");
+                    return new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
                 });
 
         if (!user.getEnabled()) {
             log.warn("Login failed: account disabled for username: {}", request.getUsername());
-            throw new BusinessException("Account is disabled");
+            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_DISABLED);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {
             log.warn("Login failed: invalid password for username: {}", request.getUsername());
-            throw new BusinessException("Invalid username or password");
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
         String userId = user.getId().toString();
@@ -84,7 +85,7 @@ public class AuthService {
 
         if (!jwtTokenProvider.validateToken(refreshToken)) {
             log.warn("Token refresh failed: invalid refresh token");
-            throw new BusinessException("Invalid or expired refresh token");
+            throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED);
         }
 
         String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
@@ -93,18 +94,18 @@ public class AuthService {
         String tokenType = jwtTokenProvider.getClaimFromToken(refreshToken, "type");
         if (!"refresh".equals(tokenType)) {
             log.warn("Token refresh failed: token is not a refresh token for userId: {}", userId);
-            throw new BusinessException("Invalid token type");
+            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN);
         }
 
         User user = userRepository.findById(UUID.fromString(userId))
                 .orElseThrow(() -> {
                     log.warn("Token refresh failed: user not found for userId: {}", userId);
-                    return new BusinessException("User not found");
+                    return new BusinessException(ErrorCode.NOT_FOUND);
                 });
 
         if (!user.getEnabled()) {
             log.warn("Token refresh failed: account disabled for userId: {}", userId);
-            throw new BusinessException("Account is disabled");
+            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_DISABLED);
         }
 
         String roleString = user.getRole().name().toLowerCase();

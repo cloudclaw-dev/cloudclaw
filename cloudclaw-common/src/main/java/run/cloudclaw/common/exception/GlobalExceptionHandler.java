@@ -12,6 +12,10 @@ import org.springframework.web.bind.annotation.ResponseStatus;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.resource.NoResourceFoundException;
 
+import java.net.ConnectException;
+import java.util.LinkedHashMap;
+import java.util.Map;
+import java.util.concurrent.TimeoutException;
 import java.util.stream.Collectors;
 
 @RestControllerAdvice
@@ -20,16 +24,25 @@ public class GlobalExceptionHandler {
     private static final Logger log = LoggerFactory.getLogger(GlobalExceptionHandler.class);
 
     @ExceptionHandler(BusinessException.class)
-    public ResponseEntity<Result<Void>> handleBusinessException(BusinessException e) {
-        log.warn("Business exception: code={}, message={}", e.getCode(), e.getMessage());
-        HttpStatus status = switch (e.getCode()) {
-            case 401 -> HttpStatus.UNAUTHORIZED;
-            case 403 -> HttpStatus.FORBIDDEN;
-            case 404 -> HttpStatus.NOT_FOUND;
-            case 409 -> HttpStatus.CONFLICT;
-            default -> HttpStatus.BAD_REQUEST;
-        };
-        return ResponseEntity.status(status).body(Result.error(e.getCode(), e.getMessage()));
+    public ResponseEntity<Map<String, Object>> handleBusinessException(BusinessException e) {
+        log.warn("Business exception: code={}, i18nKey={}, message={}", e.getCode(), e.getI18nKey(), e.getMessage());
+
+        HttpStatus status = mapToHttpStatus(e.getCode());
+
+        String message = e.getFallbackMsg() != null ? e.getFallbackMsg() : e.getMessage();
+
+        Map<String, Object> body = new LinkedHashMap<>();
+        body.put("code", e.getCode());
+        body.put("message", message);
+        body.put("data", null);
+        if (e.getI18nKey() != null) {
+            body.put("i18nKey", e.getI18nKey());
+        }
+        if (e.getArgs() != null && e.getArgs().length > 0) {
+            body.put("args", e.getArgs());
+        }
+
+        return ResponseEntity.status(status).body(body);
     }
 
     @ExceptionHandler(MethodArgumentNotValidException.class)
@@ -49,6 +62,14 @@ public class GlobalExceptionHandler {
         return Result.error(404, "Resource not found");
     }
 
+    @ExceptionHandler({org.springframework.web.reactive.function.client.WebClientResponseException.class,
+            ConnectException.class, TimeoutException.class})
+    public ResponseEntity<Result<Void>> handleExternalServiceException(Exception e) {
+        log.error("External service error: {}", e.getMessage(), e);
+        return ResponseEntity.status(HttpStatus.BAD_GATEWAY)
+                .body(Result.error(5002, "common.serviceUnavailable"));
+    }
+
     @ExceptionHandler(Exception.class)
     @ResponseStatus(HttpStatus.INTERNAL_SERVER_ERROR)
     public Result<Void> handleGenericException(Exception e, HttpServletRequest request) {
@@ -58,8 +79,17 @@ public class GlobalExceptionHandler {
             log.error("SSE stream error (skipping JSON response): {}", e.getMessage());
             return null;
         }
-        String msg = e.getMessage() != null ? e.getMessage() : e.getClass().getSimpleName();
-        log.error("Unexpected error: {}", msg, e);
-        return Result.error(500, "Internal server error: " + msg);
+        log.error("Unexpected error on {}: {}", request.getRequestURI(), e.getMessage(), e);
+        return Result.error(5000, "common.internalError");
+    }
+
+    private HttpStatus mapToHttpStatus(int code) {
+        return switch (code) {
+            case 401, 1001 -> HttpStatus.UNAUTHORIZED;
+            case 403, 1003 -> HttpStatus.FORBIDDEN;
+            case 404, 1004 -> HttpStatus.NOT_FOUND;
+            case 409, 1009 -> HttpStatus.CONFLICT;
+            default -> HttpStatus.BAD_REQUEST;
+        };
     }
 }
