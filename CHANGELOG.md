@@ -5,6 +5,35 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.2] - 2026-05-25
+
+### Added
+
+- **Unit Tests** — 65 test cases across 5 modules (common, auth, session, llm, agent), all passing
+  - Workflow DTO deserialization tests (21 cases)
+  - JWT token provider tests (12 cases)
+  - Session service tests (9 cases)
+  - AES encryption service tests (8 cases)
+  - LLM route service tests (6 cases)
+  - Agent config & prompt log service tests (9 cases)
+- **Unified Error Handling (D2)** — Enterprise-grade error handling framework:
+  - `ErrorCode` enum with 34 error codes across 9 categories (1xxx–9xxx)
+  - Enhanced `BusinessException` with ErrorCode support (backward compatible)
+  - `GlobalExceptionHandler` improved: i18n key support, no internal detail leakage
+  - 16 source files migrated from hardcoded exceptions to ErrorCode
+  - ChatEngine SSE error unification (sendErrorEvent + resolveErrorCode)
+  - Frontend interceptor supports i18n key translation for error messages
+- **i18n Polish (D3)** — All hardcoded UI text eliminated:
+  - Login.vue (7 items) and ChatLayout.vue (3 items) fully i18n-ized
+  - zh.ts / en.ts updated with error code translations
+- **Version Display** — `@project.version@` via Maven resource filtering, shown in UI as `v1.0.2 · standalone`
+- **Chinese README** — Full `README_CN.md` with language toggle between English and Chinese
+
+### Changed
+
+- Version upgraded from `1.0.2-SNAPSHOT` to `1.0.2` release
+- Maven resource filtering enabled for YAML files (version injection)
+
 ## [1.0.1] - 2026-05-23
 
 ### Added
