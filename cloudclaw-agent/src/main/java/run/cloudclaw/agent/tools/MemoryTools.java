@@ -13,7 +13,6 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
-import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -26,8 +25,8 @@ public class MemoryTools {
     private static final int DEFAULT_PROFILE_MAX_TOKENS = 1000;
     private static final int DEFAULT_SESSION_MAX_TOKENS = 2000;
 
-    /** Shared context map — keyed by userId, safe for cross-thread access (SSE streaming). */
-    private static final ConcurrentHashMap<String, MemoryContext> contextMap = new ConcurrentHashMap<>();
+    /** Per-thread context — set at the start of each request, cleared on completion. */
+    private static final ThreadLocal<MemoryContext> contextHolder = new ThreadLocal<>();
 
     public MemoryTools(TokenEstimator tokenEstimator,
                        ProfileItemRepository profileItemRepository,
@@ -40,7 +39,7 @@ public class MemoryTools {
     public static void setContext(String userId, String agentId, String sessionId,
                                    Integer profileMax, Integer sessionMax) {
         if (userId == null) return;
-        contextMap.put(userId, new MemoryContext(
+        contextHolder.set(new MemoryContext(
                 userId, agentId, sessionId,
                 profileMax != null ? profileMax : DEFAULT_PROFILE_MAX_TOKENS,
                 sessionMax != null ? sessionMax : DEFAULT_SESSION_MAX_TOKENS
@@ -49,13 +48,11 @@ public class MemoryTools {
     }
 
     public static void clearContext(String userId) {
-        if (userId != null) {
-            contextMap.remove(userId);
-        }
+        contextHolder.remove();
     }
 
     private MemoryContext ctx(String userId) {
-        MemoryContext c = contextMap.get(userId);
+        MemoryContext c = contextHolder.get();
         if (c == null) {
             log.warn("No memory context found for userId: {}", userId);
         }
@@ -128,7 +125,7 @@ public class MemoryTools {
             case "replace" -> {
                 if (item_id == null || content == null) yield "Error: item_id and content required for replace.";
                 List<ProfileItem> items = profileItemRepository.findByUserIdOrderByCreatedAtAsc(userId);
-                ProfileItem target = items.stream().filter(i -> i.getId().startsWith(item_id) || i.getId().equals(item_id)).findFirst().orElse(null);
+                ProfileItem target = items.stream().filter(i -> i.getId().equals(item_id)).findFirst().orElse(null);
                 if (target == null) yield "Error: Item not found: " + item_id;
                 target.setContent(content);
                 target.setTokens(tokenEstimator.estimateTokens(content));
@@ -140,7 +137,7 @@ public class MemoryTools {
             case "remove" -> {
                 if (item_id == null) yield "Error: item_id required for remove.";
                 List<ProfileItem> items = profileItemRepository.findByUserIdOrderByCreatedAtAsc(userId);
-                ProfileItem target = items.stream().filter(i -> i.getId().startsWith(item_id) || i.getId().equals(item_id)).findFirst().orElse(null);
+                ProfileItem target = items.stream().filter(i -> i.getId().equals(item_id)).findFirst().orElse(null);
                 if (target == null) yield "Error: Item not found: " + item_id;
                 profileItemRepository.delete(target);
                 log.info("Profile item removed: {}", item_id);
@@ -217,7 +214,7 @@ public class MemoryTools {
             case "replace" -> {
                 if (item_id == null || content == null) yield "Error: item_id and content required for replace.";
                 List<SessionItem> items = sessionItemRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
-                SessionItem target = items.stream().filter(i -> i.getId().startsWith(item_id) || i.getId().equals(item_id)).findFirst().orElse(null);
+                SessionItem target = items.stream().filter(i -> i.getId().equals(item_id)).findFirst().orElse(null);
                 if (target == null) yield "Error: Item not found: " + item_id;
                 target.setContent(content);
                 target.setTokens(tokenEstimator.estimateTokens(content));
@@ -229,7 +226,7 @@ public class MemoryTools {
             case "remove" -> {
                 if (item_id == null) yield "Error: item_id required for remove.";
                 List<SessionItem> items = sessionItemRepository.findBySessionIdOrderByCreatedAtAsc(sessionId);
-                SessionItem target = items.stream().filter(i -> i.getId().startsWith(item_id) || i.getId().equals(item_id)).findFirst().orElse(null);
+                SessionItem target = items.stream().filter(i -> i.getId().equals(item_id)).findFirst().orElse(null);
                 if (target == null) yield "Error: Item not found: " + item_id;
                 sessionItemRepository.delete(target);
                 log.info("Session item removed: {}", item_id);
@@ -250,22 +247,16 @@ public class MemoryTools {
     }
 
     /**
-     * Resolve userId from context map.
-     * Only returns a userId when it can be unambiguously determined.
-     * Returns null if no context or multiple users exist (cross-user safety).
+     * Resolve userId from ThreadLocal context.
+     * Returns the userId stored for the current request thread.
      */
     private String resolveUserId() {
-        if (contextMap.isEmpty()) {
-            log.warn("Memory context map is empty — no setContext was called or context was cleared");
+        MemoryContext c = contextHolder.get();
+        if (c == null) {
+            log.warn("Memory context is not set — no setContext was called or context was cleared");
             return null;
         }
-        // If only one user, use that — safe for single-user deployments
-        if (contextMap.size() == 1) {
-            return contextMap.keys().nextElement();
-        }
-        // Multiple users — refuse to pick one arbitrarily to prevent cross-user data access
-        log.error("Multiple users in memory context map ({}), refusing ambiguous resolve", contextMap.keySet());
-        return null;
+        return c.userId;
     }
 
     // ==================== Context holder ====================

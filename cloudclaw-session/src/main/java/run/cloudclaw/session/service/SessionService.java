@@ -91,15 +91,12 @@ public class SessionService {
     public void deleteSession(String userId, String sessionId) {
         Session session = getSession(userId, sessionId);
         UUID sessionUuid = UUID.fromString(sessionId);
-        List<Message> messages = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid);
-        if (!messages.isEmpty()) {
-            messageRepository.deleteAll(messages);
-            log.debug("Deleted {} messages for session {}", messages.size(), sessionId);
-        }
+        // Batch delete messages instead of loading all into memory
+        messageRepository.deleteBySessionId(sessionUuid);
         sessionRepository.delete(session);
         try { sessionCache.evictContext(sessionId); sessionCache.evictSession(sessionId); } catch (Exception e) { log.debug("Cache eviction failed (non-critical): {}", e.getMessage()); }
         eventPublisher.publishEvent(new SessionDeleteEvent(sessionId));
-        log.info("Deleted session {} for user {} ({} messages)", sessionId, userId, messages.size());
+        log.info("Deleted session {} for user {}", sessionId, userId);
     }
 
     @Transactional(readOnly = true)

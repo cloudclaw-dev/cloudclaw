@@ -12,7 +12,6 @@ import java.time.LocalDateTime;
 @RestController
 @RequestMapping("/api/admin/prompt-logs")
 @RequiredArgsConstructor
-@CrossOrigin
 public class PromptLogController {
 
     private final PromptLogService promptLogService;

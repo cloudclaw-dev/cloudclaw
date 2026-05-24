@@ -135,11 +135,9 @@ public class SessionCompressor {
             return;
         }
 
-        // Mark old messages as compressed
-        for (Message msg : toCompress) {
-            msg.setCompressed(true);
-            messageRepository.save(msg);
-        }
+        // Mark old messages as compressed (batch)
+        toCompress.forEach(msg -> msg.setCompressed(true));
+        messageRepository.saveAll(toCompress);
 
         // Check if there's already a summary message and append to it, or create new
         List<Message> existingSummaries = messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionUuid)

@@ -72,8 +72,8 @@ class AesEncryptionServiceTest {
     }
 
     @Test
-    @DisplayName("密钥不足 32 字节应补零")
-    void shortKey_paddedWithZeros() {
+    @DisplayName("SHA-256 派生密钥应始终生成有效 256-bit key")
+    void shortKey_sha256Derivation() {
         AesEncryptionService shortKeyService = new AesEncryptionService("short");
         String original = "test-data";
         String encrypted = shortKeyService.encrypt(original);

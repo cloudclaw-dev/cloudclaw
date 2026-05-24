@@ -4,6 +4,8 @@ import lombok.Getter;
 
 /**
  * Unified error codes for the application.
+ * Note: These are BUSINESS error codes (not HTTP status codes).
+ * They are returned in the response body as numeric identifiers for frontend i18n lookup.
  * Each error code has a numeric code and an i18n key that maps to frontend translations.
  */
 @Getter

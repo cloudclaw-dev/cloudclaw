@@ -10,7 +10,7 @@ spring:
   application:
     name: cloudclaw
   main:
-    allow-bean-definition-overriding: true
+    allow-bean-definition-overriding: false
   profiles:
     active: standalone
   datasource:
@@ -39,8 +39,16 @@ spring:
 cloudclaw:
   version: '@project.version@'
   mode: standalone
+  crypto:
+    secret: ${CRYPTO_SECRET:}
+  cors:
+    allowed-origins:
+      - https://cloudclaw.run
+      - "https://*.cloudclaw.run"
+      - "http://localhost:*"
+      - "http://192.168.1.*:*"
   jwt:
-    secret: ${JWT_SECRET:cloudclaw-default-secret-key-must-be-at-least-256-bits-long-for-hmac-sha}
+    secret: ${JWT_SECRET:}
     access-token-ttl: 2h
     refresh-token-ttl: 7d
   memory:

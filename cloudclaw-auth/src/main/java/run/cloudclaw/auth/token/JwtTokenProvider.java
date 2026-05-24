@@ -31,7 +31,13 @@ public class JwtTokenProvider {
 
     @PostConstruct
     public void init() {
-        byte[] keyBytes = tokenProperties.getSecret().getBytes(StandardCharsets.UTF_8);
+        String secret = tokenProperties.getSecret();
+        if (secret == null || secret.isBlank()) {
+            throw new IllegalStateException(
+                "JWT secret key must be configured via 'cloudclaw.jwt.secret' or 'JWT_SECRET' env variable. " +
+                "No default is provided for security reasons.");
+        }
+        byte[] keyBytes = secret.getBytes(StandardCharsets.UTF_8);
         if (keyBytes.length < 32) {
             throw new IllegalStateException(
                     "JWT secret key must be at least 256 bits (32 bytes). "

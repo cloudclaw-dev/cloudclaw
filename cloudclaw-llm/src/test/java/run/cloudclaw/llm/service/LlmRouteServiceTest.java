@@ -43,8 +43,7 @@ class LlmRouteServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getChatClient("model-x"));
-        assertEquals(404, ex.getCode());
-        assertTrue(ex.getMessage().contains("Model not found"));
+        assertEquals(3001, ex.getCode());
     }
 
     @Test
@@ -58,8 +57,7 @@ class LlmRouteServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getChatClient("model-1"));
-        assertEquals(404, ex.getCode());
-        assertTrue(ex.getMessage().contains("Provider not found"));
+        assertEquals(3002, ex.getCode());
     }
 
     @Test
@@ -80,8 +78,7 @@ class LlmRouteServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getChatClient("model-1"));
-        assertEquals(400, ex.getCode());
-        assertTrue(ex.getMessage().contains("Unsupported provider type"));
+        assertEquals(3007, ex.getCode());
     }
 
     @Test
@@ -118,7 +115,7 @@ class LlmRouteServiceTest {
 
         // Will fail at credential acquisition, but parsing is done before that
         when(credentialService.acquireCredential("p1"))
-                .thenThrow(new BusinessException(400, "No credential"));
+                .thenThrow(new BusinessException(3005, "No credential"));
         assertThrows(BusinessException.class, () -> service.getChatClient("m1"));
     }
 }

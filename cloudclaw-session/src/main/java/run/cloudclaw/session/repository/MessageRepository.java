@@ -48,4 +48,9 @@ public interface MessageRepository extends JpaRepository<Message, UUID> {
      * Find by requestId for idempotency checks.
      */
     Message findByRequestId(String requestId);
+
+    /**
+     * Delete all messages for a given session (batch operation).
+     */
+    void deleteBySessionId(UUID sessionId);
 }
