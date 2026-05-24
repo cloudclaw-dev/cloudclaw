@@ -1,5 +1,103 @@
 import api from './index'
 
+// ===== Type Definitions =====
+
+export interface ChatChunk {
+  content: string
+  toolCall: boolean
+  done: boolean
+  type?: string
+  targetAgent?: string
+  contextStats?: ContextStats
+  errorCode?: number
+  errorI18nKey?: string
+  errorDetail?: string
+}
+
+export interface ContextStats {
+  totalTokens: number
+  historyMessages: number
+  toolCallCount: number
+  maxTokens: number
+  usagePercent: number
+  systemTokens: number
+  historyTokens: number
+  memoryTokens: number
+  userMessageTokens: number
+  toolResultTokens: number
+}
+
+export interface AsyncChatResult {
+  userMessageId: string
+  assistantMessageId: string
+  status: string
+}
+
+export interface PollResult {
+  messages: MessageVo[]
+  hasMore: boolean
+}
+
+export interface MessageVo {
+  id: string
+  role: string
+  content: string
+  status: string
+  createdAt: string
+}
+
+export interface LoginRequest {
+  username: string
+  password: string
+}
+
+export interface LoginResponse {
+  accessToken: string
+  refreshToken: string
+  userId: string
+  username: string
+  role: string
+}
+
+export interface CreateUserRequest {
+  username: string
+  password: string
+  email?: string
+  role: string
+}
+
+export interface CreateAgentRequest {
+  name: string
+  description?: string
+  systemPrompt: string
+  modelId: string
+  temperature?: number
+  maxTokens?: number
+}
+
+export interface CreateLlmProviderRequest {
+  name: string
+  displayName?: string
+  apiBase: string
+  providerType: string
+}
+
+export interface CreateLlmModelRequest {
+  id: string
+  providerId: string
+  modelName: string
+  displayName?: string
+  contextWindow?: number
+  maxOutput?: number
+}
+
+export interface CreateLlmCredentialRequest {
+  providerId: string
+  name: string
+  apiKey: string
+}
+
+
 export const authApi = {
   login: (data: { username: string; password: string }) => api.post('/v1/auth/login', data),
   refresh: (refreshToken: string) => api.post('/v1/auth/refresh', { refreshToken })
@@ -40,8 +138,8 @@ export const userApi = {
 // ===== Admin API =====
 export const adminApi = {
   // Users
-  getUsers: (params?: any) => api.get('/admin/users', { params }),
-  createUser: (data: any) => api.post('/admin/users', data),
+  getUsers: (params?: Record<string, unknown>) => api.get('/admin/users', { params }),
+  createUser: (data: CreateUserRequest) => api.post('/admin/users', data),
   updateUser: (id: string, data: any) => api.put(`/admin/users/${id}`, data),
   deleteUser: (id: string) => api.delete(`/admin/users/${id}`),
 
@@ -111,6 +209,8 @@ export async function sendChatMessage(
   onError: (error: any) => void,
   signal?: AbortSignal
 ) {
+  // TODO: [Security] JWT stored in localStorage is vulnerable to XSS attacks.
+  // Consider migrating to httpOnly cookies for production deployments.
   const token = localStorage.getItem('access_token')
   try {
     const response = await fetch(`/api/v1/sessions/${sessionId}/chat`, {

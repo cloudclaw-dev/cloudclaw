@@ -7,7 +7,6 @@ import run.cloudclaw.common.model.SessionItem;
 import run.cloudclaw.memory.service.MemoryService;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
-import org.springframework.web.bind.annotation.CrossOrigin;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
@@ -34,7 +33,6 @@ import java.util.Map;
 @RestController
 @RequestMapping("/api/v1/memory")
 @RequiredArgsConstructor
-@CrossOrigin
 public class MemoryController {
 
     private final MemoryService memoryService;

@@ -8,6 +8,7 @@ import javax.crypto.Cipher;
 import javax.crypto.spec.GCMParameterSpec;
 import javax.crypto.spec.SecretKeySpec;
 import java.nio.charset.StandardCharsets;
+import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
 
@@ -21,11 +22,20 @@ public class AesEncryptionService {
 
     private final SecretKeySpec keySpec;
 
-    public AesEncryptionService(@Value("${cloudclaw.crypto.secret:cloudclaw-default-crypto-secret-key-32b}") String key) {
-        byte[] keyBytes = new byte[32];
-        byte[] provided = key.getBytes(StandardCharsets.UTF_8);
-        System.arraycopy(provided, 0, keyBytes, 0, Math.min(provided.length, 32));
-        this.keySpec = new SecretKeySpec(keyBytes, "AES");
+    public AesEncryptionService(@Value("${cloudclaw.crypto.secret:}") String key) {
+        if (key == null || key.isBlank()) {
+            throw new IllegalStateException(
+                "Encryption key must be configured via 'cloudclaw.crypto.secret'. " +
+                "No default is provided for security reasons.");
+        }
+        try {
+            // Derive a 256-bit key using SHA-256 hash of the secret (same approach as AesCryptoUtil)
+            MessageDigest sha256 = MessageDigest.getInstance("SHA-256");
+            byte[] keyBytes = sha256.digest(key.getBytes(StandardCharsets.UTF_8));
+            this.keySpec = new SecretKeySpec(keyBytes, "AES");
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to derive encryption key", e);
+        }
     }
 
     public String encrypt(String plaintext) {

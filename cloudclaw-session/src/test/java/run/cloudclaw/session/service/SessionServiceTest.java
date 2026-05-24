@@ -66,7 +66,7 @@ class SessionServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getSession("user-1", "nonexistent"));
-        assertEquals(404, ex.getCode());
+        assertEquals(5001, ex.getCode());
     }
 
     @Test
@@ -78,7 +78,7 @@ class SessionServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getSession("user-1", "s-1"));
-        assertEquals(403, ex.getCode());
+        assertEquals(5002, ex.getCode());
     }
 
     @Test
@@ -101,10 +101,10 @@ class SessionServiceTest {
         session.setUserId("user-1");
         session.setId(sessionId.toString());
         when(sessionRepository.findById(sessionId.toString())).thenReturn(Optional.of(session));
-        when(messageRepository.findBySessionIdOrderByCreatedAtAsc(sessionId))
-                .thenReturn(List.of());
 
         service.deleteSession("user-1", sessionId.toString());
+
+        verify(messageRepository).deleteBySessionId(sessionId);
 
         verify(sessionRepository).delete(session);
         verify(eventPublisher).publishEvent(any(run.cloudclaw.common.event.SessionDeleteEvent.class));

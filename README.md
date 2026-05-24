@@ -93,6 +93,10 @@ cloudclaw
 # Build
 mvn clean package -DskipTests
 
+# Set required secrets (no defaults for security)
+export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
+export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
+
 # Run
 java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar
 
@@ -102,6 +106,8 @@ java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar
 ```
 
 Standalone mode works out of the box: SQLite + in-memory MQ. No PostgreSQL or Redis needed.
+
+> ⚠️ `JWT_SECRET` and `CRYPTO_SECRET` are **required** — the application will refuse to start without them. Generate strong random strings for production.
 
 After login, go to **LLM 管理** to configure your API key and model provider.
 
@@ -113,8 +119,14 @@ After login, go to **LLM 管理** to configure your API key and model provider.
 # Create database
 createdb cloudclaw
 
-# Build & Run
+# Build
 mvn clean package -DskipTests
+
+# Set required secrets
+export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
+export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
+
+# Run
 java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar \
   --spring.profiles.active=cluster
 ```
@@ -138,13 +150,14 @@ spring:
 | Property | Default | Description |
 |----------|---------|-------------|
 | `spring.profiles.active` | `standalone` | `standalone` or `cluster` |
-| `cloudclaw.jwt.secret` | (built-in) | JWT signing key (change in production!) |
+| `cloudclaw.jwt.secret` | *(required)* | JWT signing key (env: `JWT_SECRET`, no default) |
 | `cloudclaw.jwt.access-token-ttl` | `2h` | Access token TTL |
 | `cloudclaw.jwt.refresh-token-ttl` | `7d` | Refresh token TTL |
 | `cloudclaw.memory.engine` | `jdbc` | Memory engine: `jdbc` or `mem0` |
 | `cloudclaw.mq.provider` | `inmemory` | MQ provider: `inmemory` or `redis` |
 | `cloudclaw.mcp.pool.max-connections-per-server` | `5` | Max connections per MCP server |
 | `cloudclaw.cache.session-ttl` | `30m` | Session cache TTL |
+| `cloudclaw.crypto.secret` | *(required)* | API key encryption secret (env: `CRYPTO_SECRET`, no default) |
 | `cloudclaw.sandbox.default-backend` | `LOCAL` | Sandbox backend: `LOCAL`, `DOCKER`, `E2B` |
 | `cloudclaw.sandbox.default-mode` | `STATELESS` | Sandbox mode: `STATELESS` or `SESSION` |
 | `cloudclaw.sandbox.default-timeout` | `30s` | Default code execution timeout |

@@ -177,6 +177,8 @@ public class AgentTransferService {
      */
     public static class TransferToolCallback implements ToolCallback {
 
+        private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER = new com.fasterxml.jackson.databind.ObjectMapper();
+
         private final String toolName;
         private final String targetName;
         private final String targetPath;
@@ -203,8 +205,7 @@ public class AgentTransferService {
             String reason = "";
             try {
                 if (toolInput != null && !toolInput.isBlank()) {
-                    com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                    com.fasterxml.jackson.databind.JsonNode node = mapper.readTree(toolInput);
+                    com.fasterxml.jackson.databind.JsonNode node = MAPPER.readTree(toolInput);
                     if (node.has("reason")) reason = node.get("reason").asText();
                 }
             } catch (Exception e) {

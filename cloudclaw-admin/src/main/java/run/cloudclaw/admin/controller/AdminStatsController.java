@@ -115,10 +115,7 @@ public class AdminStatsController {
         long totalSessions = sessionRepository.count();
 
         LocalDateTime activeThreshold = LocalDateTime.now().minusMinutes(30);
-        long activeSessions = sessionRepository.findAll().stream()
-                .filter(session -> session.getUpdatedAt() != null
-                        && session.getUpdatedAt().isAfter(activeThreshold))
-                .count();
+        long activeSessions = sessionRepository.countByUpdatedAtAfter(activeThreshold);
 
         // Build daily session trend from sessions table
         String sd = startDate != null ? startDate : LocalDate.now().minusDays(30).format(DATE_FMT);
@@ -133,14 +130,15 @@ public class AdminStatsController {
             dailyCount.put(d.format(DATE_FMT), 0);
         }
 
-        // Count sessions per day
-        List<Session> sessions = sessionRepository.findAll();
+        // Count sessions per day using DB aggregation
+        LocalDateTime aggStart = start.atStartOfDay();
+        LocalDateTime aggEnd = end.plusDays(1).atStartOfDay();
+        List<Object[]> dailyAgg = sessionRepository.countByDateRange(aggStart, aggEnd);
         DateTimeFormatter dateTimeDayFmt = DateTimeFormatter.ofPattern("yyyy-MM-dd");
-        for (Session s : sessions) {
-            if (s.getCreatedAt() != null) {
-                String day = s.getCreatedAt().format(dateTimeDayFmt);
-                dailyCount.merge(day, 1, Integer::sum);
-            }
+        for (Object[] row : dailyAgg) {
+            String day = ((java.sql.Date) row[0]).toLocalDate().format(dateTimeDayFmt);
+            Number count = (Number) row[1];
+            dailyCount.merge(day, count.intValue(), Integer::sum);
         }
 
         // Convert to list of maps

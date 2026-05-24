@@ -55,7 +55,7 @@ class AgentConfigServiceTest {
 
         BusinessException ex = assertThrows(BusinessException.class,
                 () -> service.getAgentConfig(AGENT_UUID.toString()));
-        assertTrue(ex.getMessage().contains("Agent not found"));
+        assertEquals(2001, ex.getCode());
     }
 
     @Test

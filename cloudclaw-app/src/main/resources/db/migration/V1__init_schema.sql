@@ -308,7 +308,7 @@ INSERT INTO agents (id, name, description, system_prompt, model_id, temperature,
 INSERT INTO llm_providers (id, name, display_name, api_base, provider_type) VALUES
 ('p1', 'openai', 'OpenAI', 'https://api.openai.com', 'openai_compatible'),
 ('p2', 'zhipu', '智谱AI', 'https://open.bigmodel.cn/api/coding/paas/v4', 'openai_compatible'),
-('p3', 'deepseek', 'DeepSeek', 'https://api.deepseek.com', 'openai_compatible'),
+('p3', 'deepseek', 'DeepSeek', 'https://api.deepseek.com', 'deepseek'),
 ('p4', 'qwen', '通义千问', 'https://dashscope.aliyuncs.com/compatible-mode', 'openai_compatible'),
 ('p5', 'ollama', 'Ollama', 'http://localhost:11434', 'ollama')
 ON CONFLICT (name) DO NOTHING;

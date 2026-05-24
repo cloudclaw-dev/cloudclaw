@@ -2,6 +2,7 @@ package run.cloudclaw.auth.security;
 
 import jakarta.servlet.DispatcherType;
 import lombok.RequiredArgsConstructor;
+import org.springframework.core.env.Environment;
 import org.springframework.web.cors.CorsConfiguration;
 import org.springframework.web.cors.CorsConfigurationSource;
 import org.springframework.web.cors.UrlBasedCorsConfigurationSource;
@@ -14,6 +15,9 @@ import org.springframework.security.config.http.SessionCreationPolicy;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.web.SecurityFilterChain;
 import org.springframework.security.web.authentication.UsernamePasswordAuthenticationFilter;
+
+import java.util.ArrayList;
+import java.util.List;
 
 /**
  * Spring Security configuration for CloudClaw.
@@ -32,6 +36,7 @@ import org.springframework.security.web.authentication.UsernamePasswordAuthentic
 public class SecurityConfig {
 
     private final JwtAuthenticationFilter jwtAuthenticationFilter;
+    private final Environment environment;
 
     @Bean
     public SecurityFilterChain securityFilterChain(HttpSecurity http) throws Exception {
@@ -79,14 +84,28 @@ public class SecurityConfig {
     public CorsConfigurationSource corsConfigurationSource() {
         CorsConfiguration config = new CorsConfiguration();
         config.setAllowCredentials(true);
-        config.addAllowedOriginPattern("https://cloudclaw.run");
-        config.addAllowedOriginPattern("https://*.cloudclaw.run");
-        config.addAllowedOriginPattern("http://cloudclaw.run:*");
-        config.addAllowedOriginPattern("https://cloudclaw.run:*");
-        config.addAllowedOriginPattern("http://*.cloudclaw.run:*");
-        config.addAllowedOriginPattern("https://*.cloudclaw.run:*");
-        config.addAllowedOriginPattern("http://localhost:*");
-        config.addAllowedOriginPattern("http://192.168.1.*:*");
+        // Load allowed origins from application config: cloudclaw.cors.allowed-origins[0], etc.
+        List<String> allowedOrigins = new ArrayList<>();
+        // Try list-style properties first
+        int i = 0;
+        while (true) {
+            String origin = environment.getProperty("cloudclaw.cors.allowed-origins[" + i + "]");
+            if (origin == null) break;
+            allowedOrigins.add(origin);
+            i++;
+        }
+        // Fallback to defaults if none configured
+        if (allowedOrigins.isEmpty()) {
+            allowedOrigins = List.of(
+                "https://cloudclaw.run",
+                "https://*.cloudclaw.run",
+                "http://localhost:*",
+                "http://192.168.1.*:*"
+            );
+        }
+        for (String origin : allowedOrigins) {
+            config.addAllowedOriginPattern(origin);
+        }
         config.addAllowedHeader("*");
         config.addAllowedMethod("*");
         UrlBasedCorsConfigurationSource source = new UrlBasedCorsConfigurationSource();

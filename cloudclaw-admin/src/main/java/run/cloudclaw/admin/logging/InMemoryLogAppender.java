@@ -11,7 +11,7 @@ import java.util.ArrayList;
 import java.util.Collections;
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.ConcurrentLinkedDeque;
+import java.util.concurrent.ArrayBlockingQueue;
 
 /**
  * In-memory Logback appender that keeps the latest log events in a ring buffer.
@@ -23,8 +23,12 @@ public class InMemoryLogAppender extends AppenderBase<ILoggingEvent> {
     private static final DateTimeFormatter TIME_FMT = DateTimeFormatter.ofPattern("yyyy-MM-dd HH:mm:ss.SSS")
             .withZone(ZoneId.systemDefault());
 
-    private final ConcurrentLinkedDeque<Map<String, String>> buffer = new ConcurrentLinkedDeque<>();
+    private final ArrayBlockingQueue<Map<String, String>> buffer;
     private int maxSize = DEFAULT_MAX_SIZE;
+
+    public InMemoryLogAppender() {
+        this.buffer = new ArrayBlockingQueue<>(DEFAULT_MAX_SIZE);
+    }
 
     @Override
     protected void append(ILoggingEvent event) {
@@ -36,9 +40,10 @@ public class InMemoryLogAppender extends AppenderBase<ILoggingEvent> {
                 "logger", event.getLoggerName() != null ? event.getLoggerName() : "",
                 "message", message
         );
-        buffer.addLast(entry);
+        buffer.offer(entry); // offer() discards if full (oldest already evicted)
+        // Evict oldest if over capacity (edge case during concurrent access)
         while (buffer.size() > maxSize) {
-            buffer.pollFirst();
+            buffer.poll();
         }
     }
 
@@ -52,10 +57,11 @@ public class InMemoryLogAppender extends AppenderBase<ILoggingEvent> {
         }
 
         List<Map<String, String>> result = new ArrayList<>();
-        // Read from newest to oldest
-        var descIterator = buffer.descendingIterator();
-        while (descIterator.hasNext() && result.size() < limit) {
-            Map<String, String> entry = descIterator.next();
+        // Read all entries, then filter in reverse order (newest first)
+        List<Map<String, String>> all = new ArrayList<>(buffer);
+        Collections.reverse(all);
+        for (Map<String, String> entry : all) {
+            if (result.size() >= limit) break;
             if (filterLevel == null || matchesLevel(entry.get("level"), filterLevel)) {
                 result.add(entry);
             }

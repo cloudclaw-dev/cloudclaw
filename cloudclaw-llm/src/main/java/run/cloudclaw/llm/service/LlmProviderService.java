@@ -64,7 +64,7 @@ public class LlmProviderService {
         log.info("Initializing LLM provider presets");
         createPresetIfAbsent("openai", "OpenAI", "https://api.openai.com", "openai_compatible");
         createPresetIfAbsent("zhipu", "智谱AI", "https://open.bigmodel.cn/api/coding/paas/v4", "openai_compatible");
-        createPresetIfAbsent("deepseek", "DeepSeek", "https://api.deepseek.com", "openai_compatible");
+        createPresetIfAbsent("deepseek", "DeepSeek", "https://api.deepseek.com", "deepseek");
         createPresetIfAbsent("qwen", "通义千问", "https://dashscope.aliyuncs.com/compatible-mode", "openai_compatible");
         createPresetIfAbsent("ollama", "Ollama", "http://localhost:11434", "ollama");
     }

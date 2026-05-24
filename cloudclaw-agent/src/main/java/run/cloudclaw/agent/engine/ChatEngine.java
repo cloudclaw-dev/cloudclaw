@@ -357,9 +357,9 @@ public class ChatEngine {
                     estimateTokens(effectiveSystemPrompt), null, null);
         }
 
-        Thread chatThread = new Thread(() -> {
+        long startTime = System.currentTimeMillis();
+        chatExecutor.execute(() -> {
             SandboxContext.bindToThread(sessionId);
-            long startTime = System.currentTimeMillis();
             try {
                 requestSpec.stream()
                         .chatResponse()
@@ -482,16 +482,15 @@ public class ChatEngine {
                 SandboxContext.unbindFromThread();
             }
         });
-        chatThread.setName("chat-" + sessionId);
-        chatThread.setDaemon(true);
-        chatThread.start();
 
         return sink.asFlux();
     }
 
     /**
-     * Detect if a response contains a transfer marker.
-     * The transfer tool returns "TRANSFER:targetName:targetPath:reason"
+     * Detect if a response contains a transfer marker from tool call results.
+     * The transfer tool returns "TRANSFER:targetName:targetPath:reason" which the
+     * ToolCallAdvisor passes through the LLM, and the LLM may include it in output.
+     * TODO: Consider intercepting tool call results directly instead of text scanning.
      */
     private TransferInfo detectTransfer(String response) {
         if (response == null) return null;
@@ -877,6 +876,12 @@ public class ChatEngine {
         }
     }
 
+    /**
+     * Rough token estimation based on character analysis.
+     * CJK characters count as ~1 token each, ASCII as ~0.25 tokens each.
+     * TODO: Replace with tiktoken or a proper tokenizer for accurate counts.
+     * This is intentionally conservative and may over/under-estimate.
+     */
     private int estimateTokens(String text) {
         if (text == null) return 0;
         int cjk = 0, ascii = 0;
