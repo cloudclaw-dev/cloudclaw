@@ -1,22 +1,39 @@
+<div align="center">
+
 # CloudClaw
 
-Enterprise-grade open source AI Agent platform built with Spring Boot and Spring AI.
+**Enterprise-grade open source AI Agent platform**
 
-## Why CloudClaw
+Built with Spring Boot · Spring AI · Vue 3
 
-Most AI Agent platforms target individual developers, relying on local filesystems and script execution. Enterprises need something different: multi-tenant isolation, stateless scalability, and a secure Agent runtime.
+[![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
+[![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
+[![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
 
-CloudClaw exists to:
+[🌐 Website](https://cloudclaw.run) · [📖 Documentation](https://cloudclaw.run) · [💬 Discussions](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 Issues](https://github.com/cloudclaw-dev/cloudclaw/issues)
 
-- **Make AI Agent platforms as easy to deploy as any regular app** — `java -jar` to start, Docker Compose for production
-- **Multi-tenant by design** — Sessions, memories, and configs are isolated per user, not a single-user toy
-- **Stateless Agents** — All state lives in databases and caches, enabling horizontal scaling
-- **Security first** — Agent I/O through MCP, database, or isolated sandbox — never raw host access
-- **Pluggable architecture** — Memory engines, message queues, LLM providers, and MCP servers are all replaceable
+**English** · [中文](README_CN.md)
 
-## CloudClaw vs OpenClaw
+</div>
 
-CloudClaw and [OpenClaw](https://github.com/openclaw/openclaw) serve different purposes:
+---
+
+Most AI Agent platforms target individual developers — local filesystems, script execution, single-user. Enterprises need more: **multi-tenant isolation, stateless scalability, and a secure Agent runtime**.
+
+CloudClaw is an enterprise-grade AI Agent platform that makes deploying multi-agent systems as easy as running a regular web application.
+
+## ✨ Highlights
+
+- 🚀 **One command to start** — `java -jar` in standalone mode, Docker Compose for production
+- 👥 **Multi-tenant by design** — Sessions, memories, and configs are isolated per user
+- 📈 **Stateless & scalable** — All state in databases and caches, ready for horizontal scaling
+- 🔒 **Security first** — Agent I/O through MCP, database, or isolated sandbox — never raw host access
+- 🔌 **Pluggable everything** — Memory engines, message queues, LLM providers, MCP servers are all replaceable
+- 🤖 **5 orchestration modes** — Pipeline, Parallel, Router, Supervisor, Handoff out of the box
+
+## 🎯 CloudClaw vs OpenClaw
+
+CloudClaw and [OpenClaw](https://github.com/openclaw/openclaw) are complementary projects:
 
 | | OpenClaw | CloudClaw |
 |------|----------|-----------|
@@ -26,98 +43,22 @@ CloudClaw and [OpenClaw](https://github.com/openclaw/openclaw) serve different p
 | **Storage** | Local filesystem (MEMORY.md) | Database (PostgreSQL / SQLite) |
 | **Script Execution** | Local Shell / PTY | Isolated Sandbox (Local/Docker/E2B) |
 | **Agent State** | Stateful (local process) | Stateless, horizontally scalable |
-| **Memory** | Local Markdown files | Database-backed, extensible (Mem0 / Zep) |
+| **Memory** | Local Markdown files | Database-backed (JDBC / Mem0 / Zep) |
 | **AI Framework** | Custom | Spring AI |
 | **Frontend** | None (third-party integrations) | Vue 3 + Element Plus (Admin + Chat) |
 | **Deployment** | Personal devices | Server / Container / K8s |
 | **License** | MIT | Apache 2.0 |
 
-In short: **OpenClaw is your personal butler. CloudClaw is your enterprise Agent middleware.**
+> **OpenClaw is your personal butler. CloudClaw is your enterprise Agent middleware.**
 
-## Features
-
-- 🤖 **Multi-Agent** — Create and manage multiple AI agents with independent configs
-- 🔧 **MCP Integration** — Built-in MCP gateway with connection pooling, tool routing, and permission control
-- 🧠 **Memory Service** — Pluggable memory engine (JDBC / Mem0) with vector search support
-- 💬 **Session Management** — Session persistence, context caching, message history
-- 🔐 **Auth & RBAC** — JWT authentication with admin/user role separation
-- 🎯 **Skill System** — Claude Agent Skill standard with progressive disclosure (metadata → instructions → files), auto-discovery via `@Tool`
-- 📡 **Message Queue** — Redis Streams or in-memory MQ for async processing
-- 🖥️ **Dual UI** — Admin dashboard + Chat interface in one Vue.js app
-- 🐘 **PostgreSQL** — Cluster mode with Redis cache
-- 🪶 **Standalone Mode** — SQLite, zero external dependencies
-- 📊 **Monitoring** — System logs, prompt logs, usage dashboards
-- 🔒 **Sandbox Execution** — Isolated code execution (Python/JS/Shell/Java) with Local, Docker, and E2B backends, Stateless and Session modes
-- 🧩 **LLM Management** — Multi-provider credential management, model registry, usage tracking
-
-## Multi-Agent Workflow
-
-CloudClaw supports 5 built-in orchestration modes for multi-agent collaboration:
-
-| Mode | Description |
-|------|-------------|
-| **Pipeline** | Sequential steps — output of one node feeds into the next |
-| **Parallel** | Multiple agents run simultaneously, results merged (concat or LLM summarize) |
-| **Router** | LLM-based intent classification routes to the best-matching sub-agent |
-| **Supervisor** | A planner/reviewer agent delegates tasks to specialist sub-agents iteratively |
-| **Handoff** | Conversation is transferred between agents, each maintaining its own context |
-
-All modes are configured inline (no external agent references needed) and support per-node model, system prompt, MCP servers, and skills.
-
-## Architecture
-
-```
-cloudclaw
-├── cloudclaw-app          # Spring Boot entry point & configuration
-├── cloudclaw-common       # Shared models, DTOs, utilities
-├── cloudclaw-auth         # JWT authentication & authorization
-├── cloudclaw-agent        # Agent engine, prompt assembly, chat orchestration
-├── cloudclaw-llm          # LLM multi-provider routing, credential encryption, usage stats
-├── cloudclaw-mcp          # MCP gateway, connection pool, tool routing
-├── cloudclaw-memory       # Memory service (JDBC / Mem0 engines)
-├── cloudclaw-session      # Session & message persistence
-├── cloudclaw-skill        # Skill definition & management
-├── cloudclaw-mq           # Message queue abstraction (Redis Streams / in-memory)
-├── cloudclaw-admin        # Admin API controllers
-├── cloudclaw-user         # User-facing API controllers
-├── cloudclaw-sandbox      # Code sandbox (Local/Docker/E2B, Stateless/Session modes)
-├── cloudclaw-standalone   # Standalone mode (SQLite, in-memory MQ, Caffeine cache)
-└── cloudclaw-ui           # Vue.js frontend (Chat + Admin merged)
-```
-
-## Quick Start
+## 🚀 Quick Start
 
 ### Standalone Mode (Zero Dependencies)
 
 ```bash
-# Build
-mvn clean package -DskipTests
-
-# Set required secrets (no defaults for security)
-export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
-export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
-
-# Run
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar
-
-# Access
-# Chat:    http://localhost:8080/
-# Login:   admin / admin123
-```
-
-Standalone mode works out of the box: SQLite + in-memory MQ. No PostgreSQL or Redis needed.
-
-> ⚠️ `JWT_SECRET` and `CRYPTO_SECRET` are **required** — the application will refuse to start without them. Generate strong random strings for production.
-
-After login, go to **LLM 管理** to configure your API key and model provider.
-
-### Cluster Mode (PostgreSQL + Redis)
-
-```bash
-# Prerequisites: PostgreSQL 16 + Redis 7
-
-# Create database
-createdb cloudclaw
+# Clone
+git clone https://github.com/cloudclaw-dev/cloudclaw.git
+cd cloudclaw
 
 # Build
 mvn clean package -DskipTests
@@ -127,6 +68,27 @@ export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
 # Run
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar
+```
+
+Open http://localhost:8080/ and login with `admin / admin123`.
+
+That's it — SQLite + in-memory MQ, no external dependencies.
+
+> ⚠️ `JWT_SECRET` and `CRYPTO_SECRET` are **required**. Generate strong random strings for production.
+
+### Cluster Mode (PostgreSQL + Redis)
+
+```bash
+# Prerequisites: PostgreSQL 16+ and Redis 7+
+
+createdb cloudclaw
+
+mvn clean package -DskipTests
+
+export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
+export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
+
 java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar \
   --spring.profiles.active=cluster
 ```
@@ -145,36 +107,90 @@ spring:
       port: 6379
 ```
 
-## Configuration
+## 🤖 Multi-Agent Workflow
+
+5 built-in orchestration modes for multi-agent collaboration:
+
+| Mode | Description |
+|------|-------------|
+| **Pipeline** | Sequential steps — output feeds into the next |
+| **Parallel** | Multiple agents run simultaneously, results merged |
+| **Router** | LLM-based intent classification routes to the best sub-agent |
+| **Supervisor** | Planner/reviewer agent delegates tasks iteratively |
+| **Handoff** | Conversation transfers between agents with individual context |
+
+All modes support per-node model, system prompt, MCP servers, and skills.
+
+## 🏗️ Architecture
+
+```
+cloudclaw
+├── cloudclaw-app          # Spring Boot entry point & configuration
+├── cloudclaw-common       # Shared models, DTOs, utilities
+├── cloudclaw-auth         # JWT authentication & authorization
+├── cloudclaw-agent        # Agent engine, prompt assembly, chat orchestration
+├── cloudclaw-llm          # LLM multi-provider routing, credential encryption, usage stats
+├── cloudclaw-mcp          # MCP gateway, connection pool, tool routing
+├── cloudclaw-memory       # Memory service (JDBC / Mem0 engines)
+├── cloudclaw-session      # Session & message persistence
+├── cloudclaw-skill        # Skill definition & management
+├── cloudclaw-mq           # Message queue abstraction (Redis Streams / in-memory)
+├── cloudclaw-admin        # Admin API controllers
+├── cloudclaw-user         # User-facing API controllers
+├── cloudclaw-sandbox      # Code sandbox (Local/Docker/E2B)
+├── cloudclaw-standalone   # Standalone mode (SQLite, in-memory MQ, Caffeine cache)
+└── cloudclaw-ui           # Vue.js frontend (Chat + Admin)
+```
+
+## 📦 Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| **Backend** | Java 17, Spring Boot 3.4.5, Spring AI 1.1.5 |
+| **Database** | PostgreSQL 16 / SQLite |
+| **Cache** | Redis 7 |
+| **Message Queue** | Redis Streams |
+| **Auth** | JWT (HS384) |
+| **Migration** | Flyway |
+| **Sandbox** | Local / Docker (Testcontainers) / E2B |
+| **Frontend** | Vue 3, Element Plus, Vite, TypeScript, ECharts |
+| **AI Models** | Spring AI — OpenAI compatible (DeepSeek / Qwen / GLM / Ollama / …) |
+
+## ⚙️ Configuration
 
 | Property | Default | Description |
 |----------|---------|-------------|
 | `spring.profiles.active` | `standalone` | `standalone` or `cluster` |
-| `cloudclaw.jwt.secret` | *(required)* | JWT signing key (env: `JWT_SECRET`, no default) |
+| `cloudclaw.jwt.secret` | *(required)* | JWT signing key (env: `JWT_SECRET`) |
 | `cloudclaw.jwt.access-token-ttl` | `2h` | Access token TTL |
 | `cloudclaw.jwt.refresh-token-ttl` | `7d` | Refresh token TTL |
+| `cloudclaw.crypto.secret` | *(required)* | Encryption secret (env: `CRYPTO_SECRET`) |
 | `cloudclaw.memory.engine` | `jdbc` | Memory engine: `jdbc` or `mem0` |
 | `cloudclaw.mq.provider` | `inmemory` | MQ provider: `inmemory` or `redis` |
-| `cloudclaw.mcp.pool.max-connections-per-server` | `5` | Max connections per MCP server |
-| `cloudclaw.cache.session-ttl` | `30m` | Session cache TTL |
-| `cloudclaw.crypto.secret` | *(required)* | API key encryption secret (env: `CRYPTO_SECRET`, no default) |
-| `cloudclaw.sandbox.default-backend` | `LOCAL` | Sandbox backend: `LOCAL`, `DOCKER`, `E2B` |
-| `cloudclaw.sandbox.default-mode` | `STATELESS` | Sandbox mode: `STATELESS` or `SESSION` |
-| `cloudclaw.sandbox.default-timeout` | `30s` | Default code execution timeout |
-| `cloudclaw.sandbox.max-timeout` | `5m` | Maximum allowed execution timeout |
+| `cloudclaw.mcp.pool.max-connections-per-server` | `5` | Max MCP connections per server |
+| `cloudclaw.sandbox.default-backend` | `LOCAL` | Sandbox: `LOCAL`, `DOCKER`, `E2B` |
+| `cloudclaw.sandbox.default-mode` | `STATELESS` | `STATELESS` or `SESSION` |
+| `cloudclaw.sandbox.default-timeout` | `30s` | Default execution timeout |
+| `cloudclaw.sandbox.max-timeout` | `5m` | Maximum execution timeout |
 
-## Tech Stack
+## 🤝 Contributing
 
-- **Backend**: Java 17, Spring Boot 3.4.5, Spring AI 1.1.5
-- **Database**: PostgreSQL 16 / SQLite
-- **Cache**: Redis 7
-- **MQ**: Redis Streams
-- **Auth**: JWT
-- **Migration**: Flyway
-- **Sandbox**: agent-sandbox-core 0.9.1 (Local), Docker (Testcontainers), E2B
-- **Frontend**: Vue 3, Element Plus, Vite, TypeScript, ECharts
-- **AI**: Spring AI (OpenAI compatible, supports DeepSeek/Qwen/GLM/Ollama)
+Contributions are welcome! Please feel free to submit a Pull Request.
 
-## License
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/amazing-feature`)
+3. Commit your changes (`git commit -m 'Add amazing feature'`)
+4. Push to the branch (`git push origin feature/amazing-feature`)
+5. Open a Pull Request
 
-Apache License 2.0
+## 📄 License
+
+[Apache License 2.0](LICENSE)
+
+---
+
+<div align="center">
+
+**[⬆ Back to Top](#cloudclaw)**
+
+</div>
