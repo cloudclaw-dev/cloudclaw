@@ -7,6 +7,7 @@ import run.cloudclaw.common.exception.BusinessException;
 import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.Message;
 import run.cloudclaw.common.model.Session;
+import run.cloudclaw.common.repository.SessionItemRepository;
 import run.cloudclaw.session.cache.SessionCache;
 import run.cloudclaw.session.repository.MessageRepository;
 import run.cloudclaw.common.event.SessionDeleteEvent;
@@ -33,6 +34,7 @@ public class SessionService {
 
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
+    private final SessionItemRepository sessionItemRepository;
     private final SessionCache sessionCache;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -91,6 +93,8 @@ public class SessionService {
     public void deleteSession(String userId, String sessionId) {
         Session session = getSession(userId, sessionId);
         UUID sessionUuid = UUID.fromString(sessionId);
+        // Delete session context items
+        sessionItemRepository.deleteBySessionId(sessionId);
         // Batch delete messages instead of loading all into memory
         messageRepository.deleteBySessionId(sessionUuid);
         sessionRepository.delete(session);

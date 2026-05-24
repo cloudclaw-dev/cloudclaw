@@ -214,8 +214,8 @@ public class SandboxManager {
         if (!active.isEmpty()) {
             for (SandboxSession s : active) {
                 s.setStatus("ORPHANED");
-                repository.save(s);
             }
+            repository.saveAll(active);
             log.warn("Marked {} orphaned sandbox sessions on startup", active.size());
         }
     }

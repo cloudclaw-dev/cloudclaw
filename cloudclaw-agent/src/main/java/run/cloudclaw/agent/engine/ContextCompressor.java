@@ -1,6 +1,7 @@
 package run.cloudclaw.agent.engine;
 
 import run.cloudclaw.common.model.Message;
+import run.cloudclaw.memory.service.TokenEstimator;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
 
@@ -19,6 +20,12 @@ import java.util.List;
 @Component
 @Slf4j
 public class ContextCompressor {
+
+    private final TokenEstimator tokenEstimator;
+
+    public ContextCompressor(TokenEstimator tokenEstimator) {
+        this.tokenEstimator = tokenEstimator;
+    }
 
     /** Use 75% of context window as the threshold for triggering compression */
     private static final double USAGE_THRESHOLD = 0.75;
@@ -119,24 +126,7 @@ public class ContextCompressor {
         return result;
     }
 
-    /**
-     * Estimate token count for a string.
-     * CJK characters count as ~1 token each; ASCII ~4 chars per token.
-     */
     private int estimateTokens(String text) {
-        if (text == null) return 0;
-        int cjk = 0, ascii = 0;
-        for (int i = 0; i < text.length(); i++) {
-            char c = text.charAt(i);
-            if (Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.HANGUL
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.HIRAGANA
-                    || Character.UnicodeScript.of(c) == Character.UnicodeScript.KATAKANA) {
-                cjk++;
-            } else {
-                ascii++;
-            }
-        }
-        return cjk + (ascii / 4) + 1;
+        return tokenEstimator.estimateTokens(text);
     }
 }

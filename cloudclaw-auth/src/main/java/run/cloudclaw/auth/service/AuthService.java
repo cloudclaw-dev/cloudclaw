@@ -51,7 +51,7 @@ public class AuthService {
 
         if (!user.getEnabled()) {
             log.warn("Login failed: account disabled for username: {}", request.getUsername());
-            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_DISABLED);
+            throw new BusinessException(ErrorCode.AUTH_INVALID_CREDENTIALS);
         }
 
         if (!passwordEncoder.matches(request.getPassword(), user.getPassword())) {

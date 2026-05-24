@@ -6,8 +6,9 @@ import lombok.Getter;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.ai.tool.metadata.DefaultToolMetadata;
+import org.springframework.ai.tool.metadata.ToolMetadata;
 import org.springframework.ai.chat.model.ToolContext;
-import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.stereotype.Service;
 
 import java.util.ArrayList;
@@ -132,6 +133,26 @@ public class AgentTransferService {
     }
 
     /**
+     * Parse a JSON transfer result (from returnDirect TransferToolCallback).
+     * Format: {"targetName":"...","targetPath":"...","reason":"..."}
+     */
+    public TransferInfo parseTransferJson(String json) {
+        if (json == null || !json.contains("targetPath")) return null;
+        try {
+            com.fasterxml.jackson.databind.JsonNode node =
+                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+            if (!node.has("targetPath")) return null;
+            return new TransferInfo(
+                    node.has("targetName") ? node.get("targetName").asText() : "",
+                    node.get("targetPath").asText(),
+                    node.has("reason") ? node.get("reason").asText() : ""
+            );
+        } catch (Exception e) {
+            return null;
+        }
+    }
+
+    /**
      * Get parent path from current path.
      */
     public String getParentPath(String activePath) {
@@ -201,6 +222,11 @@ public class AgentTransferService {
         }
 
         @Override
+        public ToolMetadata getToolMetadata() {
+            return DefaultToolMetadata.builder().returnDirect(true).build();
+        }
+
+        @Override
         public String call(String toolInput) {
             String reason = "";
             try {
@@ -212,7 +238,11 @@ public class AgentTransferService {
                 reason = toolInput != null ? toolInput : "";
             }
             log.info("Transfer triggered: {} \u2192 {} (reason: {})", toolName, targetPath, reason);
-            return "TRANSFER:" + targetName + ":" + targetPath + ":" + reason;
+            try {
+                return MAPPER.writeValueAsString(new TransferResult(targetName, targetPath, reason));
+            } catch (Exception e) {
+                return "{\"targetName\":\"" + targetName + "\",\"targetPath\":\"" + targetPath + "\"}";
+            }
         }
 
         @Override
@@ -222,5 +252,15 @@ public class AgentTransferService {
 
         public String getTargetName() { return targetName; }
         public String getTargetPath() { return targetPath; }
+    }
+
+    /**
+     * JSON result returned by TransferToolCallback (returnDirect mode).
+     */
+    @lombok.Data @lombok.AllArgsConstructor
+    public static class TransferResult {
+        private String targetName;
+        private String targetPath;
+        private String reason;
     }
 }

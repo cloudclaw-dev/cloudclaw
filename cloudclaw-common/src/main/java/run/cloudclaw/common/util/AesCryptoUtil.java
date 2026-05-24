@@ -7,6 +7,8 @@ import java.nio.charset.StandardCharsets;
 import java.security.MessageDigest;
 import java.security.SecureRandom;
 import java.util.Base64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 /**
  * AES-256-GCM encryption utility for sensitive data (API keys, credentials).
@@ -14,6 +16,7 @@ import java.util.Base64;
  */
 public class AesCryptoUtil {
 
+    private static final Logger log = LoggerFactory.getLogger(AesCryptoUtil.class);
     private static final String ALGORITHM = "AES/GCM/NoPadding";
     private static final int GCM_IV_LENGTH = 12;
     private static final int GCM_TAG_LENGTH = 128;
@@ -85,6 +88,7 @@ public class AesCryptoUtil {
             return new String(cipher.doFinal(encrypted), StandardCharsets.UTF_8);
         } catch (Exception e) {
             // Backward compatibility: return as-is if decryption fails
+            log.warn("Decryption failed, returning ciphertext as-is for backward compatibility", e);
             return ciphertext;
         }
     }
