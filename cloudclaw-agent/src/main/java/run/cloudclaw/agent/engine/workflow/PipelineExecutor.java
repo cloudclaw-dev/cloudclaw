@@ -11,9 +11,11 @@ import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.mcp.SyncMcpToolCallbackProvider;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.util.concurrent.Executor;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -26,11 +28,19 @@ import java.util.List;
  */
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class PipelineExecutor {
 
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
+    private final Executor workflowExecutor;
+
+    public PipelineExecutor(WorkflowNodeResolver nodeResolver,
+                           WorkflowChatHelper chatHelper,
+                           @Qualifier("workflowExecutor") Executor workflowExecutor) {
+        this.nodeResolver = nodeResolver;
+        this.chatHelper = chatHelper;
+        this.workflowExecutor = workflowExecutor;
+    }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
                                     String userMessage, AgentConfig config, WorkflowDef workflow) {
@@ -48,7 +58,7 @@ public class PipelineExecutor {
         String passthroughMode = pipelineConfig != null && pipelineConfig.getPassthroughMode() != null
                 ? pipelineConfig.getPassthroughMode() : "append";
 
-        Thread pipelineThread = new Thread(() -> {
+        Runnable pipelineThread = () -> {
             try {
                 String previousStepResult = null;
                 String fullResponse = "";
@@ -124,11 +134,9 @@ public class PipelineExecutor {
                 log.error("Pipeline execution error: {}", e.getMessage(), e);
                 sink.tryEmitError(e);
             }
-        });
+        };
 
-        pipelineThread.setName("pipeline-" + sessionId);
-        pipelineThread.setDaemon(true);
-        pipelineThread.start();
+        workflowExecutor.execute(pipelineThread);
 
         return sink.asFlux();
     }

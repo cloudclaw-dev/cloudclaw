@@ -12,12 +12,14 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.chat.model.ToolContext;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.Executor;
 
 /**
  * Router executor: uses LLM to select one sub-agent to handle the request.
@@ -29,11 +31,19 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class RouterExecutor {
 
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
+    private final Executor workflowExecutor;
+
+    public RouterExecutor(WorkflowNodeResolver nodeResolver,
+                           WorkflowChatHelper chatHelper,
+                           @Qualifier("workflowExecutor") Executor workflowExecutor) {
+        this.nodeResolver = nodeResolver;
+        this.chatHelper = chatHelper;
+        this.workflowExecutor = workflowExecutor;
+    }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
                                     String userMessage, AgentConfig config, WorkflowDef workflow) {
@@ -50,7 +60,7 @@ public class RouterExecutor {
         RouterConfig routerConfig = workflow.getRouterConfig();
         boolean allowFallback = routerConfig == null || routerConfig.isAllowFallback();
 
-        Thread routerThread = new Thread(() -> {
+        Runnable routerThread = () -> {
             List<McpSyncClient> mcpClients = new ArrayList<>();
             try {
                 // Build routing system prompt
@@ -146,11 +156,9 @@ public class RouterExecutor {
                     try { client.close(); } catch (Exception ignored) {}
                 }
             }
-        });
+        };
 
-        routerThread.setName("router-" + sessionId);
-        routerThread.setDaemon(true);
-        routerThread.start();
+        workflowExecutor.execute(routerThread);
 
         return sink.asFlux();
     }

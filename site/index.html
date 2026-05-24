@@ -1,0 +1,129 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>CloudClaw - Open Source AI Agent Platform</title>
+  <meta name="description" content="Enterprise-grade open source AI Agent platform built with Spring Boot and Spring AI." />
+  <link rel="icon" type="image/png" sizes="32x32" href="favicon-32.png" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <nav class="navbar">
+    <div class="container nav-inner">
+      <a href="/" class="logo">⚡ CloudClaw</a>
+      <div class="nav-links">
+        <a href="#features">Features</a>
+        <a href="#quickstart">Quick Start</a>
+        <a href="https://github.com/openclaw/openclaw" target="_blank">GitHub</a>
+      </div>
+    </div>
+  </nav>
+
+  <section class="hero">
+    <div class="container">
+      <div class="hero-badge">Open Source · Apache 2.0</div>
+      <h1>AI Agent Platform<br/><span class="gradient">That Scales</span></h1>
+      <p>Enterprise-grade, multi-tenant, stateless. Built with Spring Boot & Spring AI.<br/>Deploy with <code>java -jar</code> or Docker. Zero config to start.</p>
+      <div class="hero-actions">
+        <a href="#quickstart" class="btn btn-primary">Get Started</a>
+        <a href="https://github.com/openclaw/openclaw" target="_blank" class="btn btn-outline">GitHub</a>
+      </div>
+    </div>
+  </section>
+
+  <section id="features" class="features">
+    <div class="container">
+      <div class="feature-grid">
+        <div class="feature-card">
+          <span class="icon">🤖</span>
+          <h3>Multi-Agent</h3>
+          <p>Create and manage multiple AI agents with independent configs and tool bindings.</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🔧</span>
+          <h3>MCP Gateway</h3>
+          <p>Built-in MCP gateway with connection pooling, tool routing, and permission control.</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🧠</span>
+          <h3>Memory Service</h3>
+          <p>Pluggable memory engine (JDBC / Mem0) with vector search. Agents remember across sessions.</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🔒</span>
+          <h3>Sandbox</h3>
+          <p>Isolated code execution (Python/JS/Shell/Java) with Local, Docker, and E2B backends.</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🧩</span>
+          <h3>Multi-LLM</h3>
+          <p>OpenAI, Anthropic, DeepSeek, GLM, Ollama — plug in any provider, switch freely.</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🎯</span>
+          <h3>Skill System</h3>
+          <p>Build and share reusable skill packs. Auto-discovery via @Tool annotations.</p>
+        </div>
+        <div class="feature-card">
+          <span class="icon">🔗</span>
+          <h3>Multi-Agent Workflow</h3>
+          <p>5 orchestration modes: Pipeline, Parallel, Router, Supervisor, and Handoff for multi-agent collaboration.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section id="quickstart" class="quickstart">
+    <div class="container">
+      <h2>Quick Start</h2>
+      <div class="terminal">
+        <div class="terminal-bar"><span></span><span></span><span></span></div>
+        <pre><code><span class="dim"># Build & Run — zero dependencies</span>
+$ mvn clean package -DskipTests
+$ java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar
+
+<span class="dim"># Cluster mode — PostgreSQL + Redis</span>
+$ java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar \
+    --spring.profiles.active=cluster
+
+<span class="dim"># Open browser</span>
+$ open http://localhost:8080    <span class="dim"># admin / admin123</span></code></pre>
+      </div>
+      <div class="modes">
+        <div class="mode-card">
+          <h3>Standalone</h3>
+          <p>SQLite + in-memory MQ.<br/>One JAR, zero config.</p>
+        </div>
+        <div class="mode-card active">
+          <h3>Cluster</h3>
+          <p>PostgreSQL + Redis.<br/>Horizontal scaling.</p>
+        </div>
+      </div>
+    </div>
+  </section>
+
+  <section class="stack">
+    <div class="container">
+      <div class="stack-row">
+        <span>Java 17</span><span>Spring Boot 3.4</span><span>Spring AI 1.1</span>
+        <span>Vue 3</span><span>Element Plus</span><span>PostgreSQL</span><span>Redis</span><span>Docker</span>
+      </div>
+    </div>
+  </section>
+
+  <section class="cta">
+    <div class="container">
+      <h2>Start Building Today</h2>
+      <p>Open source under Apache 2.0.</p>
+      <a href="https://github.com/openclaw/openclaw" target="_blank" class="btn btn-primary">Star on GitHub</a>
+    </div>
+  </section>
+
+  <footer>
+    <div class="container">
+      <p>© 2026 CloudClaw · Apache 2.0 License</p>
+    </div>
+  </footer>
+</body>
+</html>

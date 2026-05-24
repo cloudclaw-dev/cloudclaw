@@ -13,6 +13,7 @@ import org.springframework.stereotype.Component;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.UUID;
+import java.util.concurrent.ConcurrentHashMap;
 
 @Slf4j
 @Component
@@ -25,8 +26,8 @@ public class MemoryTools {
     private static final int DEFAULT_PROFILE_MAX_TOKENS = 1000;
     private static final int DEFAULT_SESSION_MAX_TOKENS = 2000;
 
-    /** Per-thread context — set at the start of each request, cleared on completion. */
-    private static final ThreadLocal<MemoryContext> contextHolder = new ThreadLocal<>();
+    /** Per-session context keyed by sessionId for cross-thread safety. */
+    private static final ConcurrentHashMap<String, MemoryContext> contextMap = new ConcurrentHashMap<>();
 
     public MemoryTools(TokenEstimator tokenEstimator,
                        ProfileItemRepository profileItemRepository,
@@ -38,8 +39,8 @@ public class MemoryTools {
 
     public static void setContext(String userId, String agentId, String sessionId,
                                    Integer profileMax, Integer sessionMax) {
-        if (userId == null) return;
-        contextHolder.set(new MemoryContext(
+        if (userId == null || sessionId == null) return;
+        contextMap.put(sessionId, new MemoryContext(
                 userId, agentId, sessionId,
                 profileMax != null ? profileMax : DEFAULT_PROFILE_MAX_TOKENS,
                 sessionMax != null ? sessionMax : DEFAULT_SESSION_MAX_TOKENS
@@ -47,16 +48,8 @@ public class MemoryTools {
         log.debug("Memory context set for user {}: sessionId={}", userId, sessionId);
     }
 
-    public static void clearContext(String userId) {
-        contextHolder.remove();
-    }
-
-    private MemoryContext ctx(String userId) {
-        MemoryContext c = contextHolder.get();
-        if (c == null) {
-            log.warn("No memory context found for userId: {}", userId);
-        }
-        return c;
+    public static void clearContext(String sessionId) {
+        if (sessionId != null) contextMap.remove(sessionId);
     }
 
     // ==================== Profile Tool ====================
@@ -83,12 +76,11 @@ public class MemoryTools {
             @ToolParam(description = "Action: read_all | add | replace | remove") String action,
             @ToolParam(description = "Item ID (for replace/remove)", required = false) String item_id,
             @ToolParam(description = "Content (for add/replace)", required = false) String content) {
-        // Resolve userId from context map
-        String userId = resolveUserId();
-        if (userId == null) return "Error: No user context available.";
-
-        MemoryContext c = ctx(userId);
-        int maxTokens = (c != null) ? c.profileMaxTokens : DEFAULT_PROFILE_MAX_TOKENS;
+        // Resolve context from session map
+        MemoryContext mc = resolveContext();
+        if (mc == null) return "Error: No user context available.";
+        String userId = mc.userId;
+        int maxTokens = mc.profileMaxTokens;
 
         return switch (action.toLowerCase()) {
             case "read_all" -> {
@@ -169,11 +161,11 @@ public class MemoryTools {
             @ToolParam(description = "Action: read_all | add | replace | remove") String action,
             @ToolParam(description = "Item ID (for replace/remove)", required = false) String item_id,
             @ToolParam(description = "Content (for add/replace)", required = false) String content) {
-        String userId = resolveUserId();
-        if (userId == null) return "Error: No user context available.";
-
-        MemoryContext c = ctx(userId);
-        if (c == null || c.sessionId == null) return "Error: No session context available.";
+        MemoryContext mc = resolveContext();
+        if (mc == null) return "Error: No user context available.";
+        String userId = mc.userId;
+        MemoryContext c = mc;
+        if (c.sessionId == null) return "Error: No session context available.";
 
         String sessionId = c.sessionId;
         int maxTokens = c.sessionMaxTokens;
@@ -247,18 +239,16 @@ public class MemoryTools {
     }
 
     /**
-     * Resolve userId from ThreadLocal context.
-     * Returns the userId stored for the current request thread.
+     * Resolve the current MemoryContext from the session context map.
+     * Returns the first available context (for single-session scenarios).
      */
-    private String resolveUserId() {
-        MemoryContext c = contextHolder.get();
-        if (c == null) {
-            log.warn("Memory context is not set — no setContext was called or context was cleared");
-            return null;
+    private MemoryContext resolveContext() {
+        if (!contextMap.isEmpty()) {
+            return contextMap.values().iterator().next();
         }
-        return c.userId;
+        log.warn("Memory context is not set - no setContext was called or context was cleared");
+        return null;
     }
-
     // ==================== Context holder ====================
 
     private record MemoryContext(String userId, String agentId, String sessionId,

@@ -3,6 +3,7 @@ package run.cloudclaw.agent.engine;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
 import org.springframework.ai.tool.definition.ToolDefinition;
+import org.springframework.ai.tool.metadata.ToolMetadata;
 
 /**
  * A decorating ToolCallback that truncates tool result content exceeding a
@@ -58,5 +59,10 @@ public class TruncatingToolCallback implements ToolCallback {
     @Override
     public ToolDefinition getToolDefinition() {
         return delegate.getToolDefinition();
+    }
+
+    @Override
+    public ToolMetadata getToolMetadata() {
+        return delegate.getToolMetadata();
     }
 }

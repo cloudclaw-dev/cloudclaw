@@ -14,6 +14,7 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 import org.springframework.ai.chat.model.ToolContext;
 import io.modelcontextprotocol.client.McpSyncClient;
 import org.springframework.stereotype.Component;
+import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
@@ -21,6 +22,7 @@ import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 import java.util.concurrent.atomic.AtomicReference;
+import java.util.concurrent.Executor;
 
 /**
  * Handoff executor: enables multi-turn agent switching within the same session.
@@ -33,7 +35,6 @@ import java.util.concurrent.atomic.AtomicReference;
  */
 @Component
 @Slf4j
-@RequiredArgsConstructor
 public class HandoffExecutor {
 
     /** Maximum number of consecutive handoffs in a single turn to prevent infinite loops. */
@@ -42,6 +43,17 @@ public class HandoffExecutor {
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
     private final SessionService sessionService;
+    private final Executor workflowExecutor;
+
+    public HandoffExecutor(WorkflowNodeResolver nodeResolver,
+                           WorkflowChatHelper chatHelper,
+                           SessionService sessionService,
+                           @Qualifier("workflowExecutor") Executor workflowExecutor) {
+        this.nodeResolver = nodeResolver;
+        this.chatHelper = chatHelper;
+        this.sessionService = sessionService;
+        this.workflowExecutor = workflowExecutor;
+    }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
                                     String userMessage, AgentConfig config, WorkflowDef workflow) {
@@ -57,7 +69,7 @@ public class HandoffExecutor {
         HandoffConfig handoffConfig = workflow.getHandoffConfig();
         boolean autoReturn = handoffConfig != null && handoffConfig.isAutoReturn();
 
-        Thread handoffThread = new Thread(() -> {
+        Runnable handoffThread = () -> {
             StringBuilder allResponses = new StringBuilder();
             List<McpSyncClient> allMcpClients = new ArrayList<>();
             try {
@@ -171,11 +183,9 @@ public class HandoffExecutor {
                     try { client.close(); } catch (Exception ignored) {}
                 }
             }
-        });
+        };
 
-        handoffThread.setName("handoff-" + sessionId);
-        handoffThread.setDaemon(true);
-        handoffThread.start();
+        workflowExecutor.execute(handoffThread);
 
         return sink.asFlux();
     }
