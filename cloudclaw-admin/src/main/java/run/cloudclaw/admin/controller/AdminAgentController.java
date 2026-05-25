@@ -137,8 +137,7 @@ public class AdminAgentController {
         Agent agent = agentRepository.findById(agentId)
                 .orElseThrow(() -> new BusinessException(ErrorCode.AGENT_NOT_FOUND, id));
         populateBindings(agent);
-
-        return Result.ok(filterResponse(agent));
+        return Result.ok(agent);
     }
 
     @PutMapping("/{id}")
@@ -224,7 +223,7 @@ public class AdminAgentController {
         log.info("Agent updated successfully: {}", id);
         agentConfigService.evictCache(id);
         configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.UPDATE, "agent", id);
-        return Result.ok(filterResponse(saved));
+        return Result.ok(saved);
     }
 
     @DeleteMapping("/{id}")

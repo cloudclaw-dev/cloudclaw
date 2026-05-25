@@ -6,7 +6,7 @@
     <parent>
         <groupId>run.cloudclaw</groupId>
         <artifactId>cloudclaw</artifactId>
-        <version>1.0.2</version>
+        <version>1.0.3-SNAPSHOT</version>
     </parent>
     <artifactId>cloudclaw-app</artifactId>
     <name>CloudClaw App</name>

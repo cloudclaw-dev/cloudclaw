@@ -377,7 +377,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { SetUp, Plus, Search, ArrowUp, ArrowDown, Delete, Monitor, Connection } from '@element-plus/icons-vue'
-import { getAgents, createAgent, updateAgent, deleteAgent, getMcpServers, getSkills, getLlmModels, getSandboxProviders } from '@/api/admin'
+import { getAgents, getAgent, createAgent, updateAgent, deleteAgent, getMcpServers, getSkills, getLlmModels, getSandboxProviders } from '@/api/admin'
 import '@/assets/admin.css'
 import { useMobile } from '@/composables/useMobile'
 import { useI18n } from 'vue-i18n'
@@ -707,30 +707,36 @@ watch(agentType, (newType, oldType) => {
   }
 })
 
-const openDialog = (row?: any) => {
+const openDialog = async (row?: any) => {
   skipWorkflowWatch = true
   isEdit.value = !!row
   if (row) {
-    editId.value = row.id
-    agentType.value = row.workflowMode ? 'multi' : 'single'
+    // Fetch full agent detail (list API filters subAgents/workflow)
+    let detail = row
+    try {
+      const res = await getAgent(row.id)
+      if (res?.data) detail = res.data
+    } catch { /* fallback to list data */ }
+    editId.value = detail.id
+    agentType.value = detail.workflowMode ? 'multi' : 'single'
     let subAgentList: SubAgent[] = []
-    if (row.subAgents) {
-      try { subAgentList = JSON.parse(row.subAgents) } catch { subAgentList = [] }
+    if (detail.subAgents) {
+      try { subAgentList = JSON.parse(detail.subAgents) } catch { subAgentList = [] }
     }
     Object.assign(form, {
-      name: row.name, modelId: row.modelId, description: row.description || '',
-      systemPrompt: row.systemPrompt || '',
+      name: detail.name, modelId: detail.modelId, description: detail.description || '',
+      systemPrompt: detail.systemPrompt || '',
       subAgentList,
-      mcpServerIds: row.mcpServerIds || [], skillIds: row.skillIds || [],
-      enabled: row.enabled !== false, maxToolCalls: row.maxToolCalls || 50,
-      compressionThreshold: row.compressionThreshold || 20,
-      compressionKeepRounds: row.compressionKeepRounds || 6,
-      contextUsageThreshold: row.contextUsageThreshold || 0.75,
-      sandboxEnabled: row.sandboxEnabled || false, sandboxBackend: row.sandboxBackend || 'LOCAL',
-      sandboxProviderId: row.sandboxProviderId || '', sandboxMode: row.sandboxMode || 'STATELESS',
-      sandboxTimeout: row.sandboxTimeout || 30,
+      mcpServerIds: detail.mcpServerIds || [], skillIds: detail.skillIds || [],
+      enabled: detail.enabled !== false, maxToolCalls: detail.maxToolCalls || 50,
+      compressionThreshold: detail.compressionThreshold || 20,
+      compressionKeepRounds: detail.compressionKeepRounds || 6,
+      contextUsageThreshold: detail.contextUsageThreshold || 0.75,
+      sandboxEnabled: detail.sandboxEnabled || false, sandboxBackend: detail.sandboxBackend || 'LOCAL',
+      sandboxProviderId: detail.sandboxProviderId || '', sandboxMode: detail.sandboxMode || 'STATELESS',
+      sandboxTimeout: detail.sandboxTimeout || 30,
       // Workflow V3
-      workflowMode: row.workflowMode || '',
+      workflowMode: detail.workflowMode || '',
       workflowNodes: [] as WorkflowNode[],
       pipelineConfig: { ...defaultPipelineConfig },
       parallelConfig: { ...defaultParallelConfig },
@@ -739,8 +745,8 @@ const openDialog = (row?: any) => {
       handoffConfig: { ...defaultHandoffConfig },
     })
     // Parse existing workflow data
-    if (row.workflowMode && row.workflow) {
-      parseWorkflowIntoForm(row.workflow, row.workflowMode)
+    if (detail.workflowMode && detail.workflow) {
+      parseWorkflowIntoForm(detail.workflow, detail.workflowMode)
     }
   } else {
     editId.value = ''
@@ -776,9 +782,18 @@ const handleSave = async () => {
     if (agentType.value === 'multi' && form.workflowMode) {
       payload.workflowMode = form.workflowMode
       const workflow = buildWorkflowPayload()
-      payload.workflow = workflow ? JSON.stringify(workflow) : null
-      // Clear legacy sub-agents when using workflow
-      payload.subAgents = null
+      // Only send workflow if nodes are present, otherwise preserve existing data
+      if (workflow && workflow.nodes && workflow.nodes.length > 0) {
+        payload.workflow = JSON.stringify(workflow)
+      } else {
+        delete payload.workflow
+      }
+      // Preserve existing subAgents unless explicitly overridden with new nodes
+      if (workflow && workflow.nodes && workflow.nodes.length > 0) {
+        payload.subAgents = null
+      } else {
+        delete payload.subAgents
+      }
     } else {
       payload.workflowMode = null
       payload.workflow = null
