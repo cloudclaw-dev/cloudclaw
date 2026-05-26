@@ -140,7 +140,7 @@ public class AgentTransferService {
         if (json == null || !json.contains("targetPath")) return null;
         try {
             com.fasterxml.jackson.databind.JsonNode node =
-                    new com.fasterxml.jackson.databind.ObjectMapper().readTree(json);
+                    TransferToolCallback.MAPPER.readTree(json);
             if (!node.has("targetPath")) return null;
             return new TransferInfo(
                     node.has("targetName") ? node.get("targetName").asText() : "",

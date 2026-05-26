@@ -5,6 +5,8 @@ import run.cloudclaw.common.dto.ChatChunk;
 import run.cloudclaw.common.dto.workflow.ParallelConfig;
 import run.cloudclaw.common.dto.workflow.WorkflowDef;
 import run.cloudclaw.common.dto.workflow.WorkflowNode;
+import run.cloudclaw.common.model.Message;
+import run.cloudclaw.agent.engine.ReactiveContextHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -35,17 +37,21 @@ public class ParallelExecutor {
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
     private final Executor workflowExecutor;
+    private final Executor parallelTaskExecutor;
 
     public ParallelExecutor(WorkflowNodeResolver nodeResolver,
                            WorkflowChatHelper chatHelper,
-                           @Qualifier("workflowExecutor") Executor workflowExecutor) {
+                           @Qualifier("workflowExecutor") Executor workflowExecutor,
+                           @Qualifier("parallelTaskExecutor") Executor parallelTaskExecutor) {
         this.nodeResolver = nodeResolver;
         this.chatHelper = chatHelper;
         this.workflowExecutor = workflowExecutor;
+        this.parallelTaskExecutor = parallelTaskExecutor;
     }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
-                                    String userMessage, AgentConfig config, WorkflowDef workflow) {
+                                    String userMessage, AgentConfig config, WorkflowDef workflow,
+                                    List<Message> history) {
         Sinks.Many<ChatChunk> sink = Sinks.many().multicast().onBackpressureBuffer(256);
 
         List<WorkflowNode> nodes = workflow.getNodes();
@@ -67,7 +73,7 @@ public class ParallelExecutor {
                 List<String> nodeNames = resolvedNodes.stream()
                         .map(ResolvedNodeAgent::getDisplayName)
                         .collect(Collectors.toList());
-                sink.tryEmitNext(ChatChunk.parallelStart(nodeNames));
+                ReactiveContextHelper.safeEmitNext(sink, ChatChunk.parallelStart(nodeNames));
 
                 // Run nodes in parallel with semaphore for concurrency control
                 Semaphore semaphore = new Semaphore(maxConcurrent);
@@ -78,7 +84,7 @@ public class ParallelExecutor {
                         List<McpSyncClient> mcpClients = new ArrayList<>();
                         try {
                             semaphore.acquire();
-                            sink.tryEmitNext(ChatChunk.parallelProgress(node.getDisplayName(), "Processing..."));
+                            ReactiveContextHelper.safeEmitNext(sink, ChatChunk.parallelProgress(node.getDisplayName(), "Processing..."));
 
                             // Build prompt using PromptAssembler
                             String systemPrompt = chatHelper.buildNodeSystemPrompt(node, config, userId, sessionId, userMessage);
@@ -98,19 +104,19 @@ public class ParallelExecutor {
                                     sessionId, config.getAgentId().toString(), userId, node.getDisplayName());
                             String result;
                             if (truncatedCallbacks.isEmpty()) {
-                                result = chatHelper.callLlm(node.getModelId(), systemPrompt, userMessage, logCtx);
+                                result = chatHelper.callLlm(node.getModelId(), systemPrompt, userMessage, history, logCtx);
                             } else {
-                                result = chatHelper.callLlmWithTools(node.getModelId(), systemPrompt, userMessage, truncatedCallbacks, maxToolCalls, logCtx);
+                                result = chatHelper.callLlmWithTools(node.getModelId(), systemPrompt, userMessage, truncatedCallbacks, maxToolCalls, history, logCtx);
                             }
 
-                            sink.tryEmitNext(ChatChunk.parallelComplete(node.getDisplayName(), result));
+                            ReactiveContextHelper.safeEmitNext(sink, ChatChunk.parallelComplete(node.getDisplayName(), result));
                             return result;
                         } catch (InterruptedException e) {
                             Thread.currentThread().interrupt();
                             return "[Error: interrupted]";
                         } catch (Exception e) {
                             log.error("Parallel node {} error: {}", node.getName(), e.getMessage());
-                            sink.tryEmitNext(ChatChunk.parallelComplete(node.getName(), "[Error: " + e.getMessage() + "]"));
+                            ReactiveContextHelper.safeEmitNext(sink, ChatChunk.parallelComplete(node.getName(), "[Error: " + e.getMessage() + "]"));
                             return "[Error: " + e.getMessage() + "]";
                         } finally {
                             semaphore.release();
@@ -119,7 +125,7 @@ public class ParallelExecutor {
                                 try { client.close(); } catch (Exception ignored) {}
                             }
                         }
-                    }, workflowExecutor);
+                    }, parallelTaskExecutor);
                     futures.add(future);
                 }
 
@@ -133,7 +139,7 @@ public class ParallelExecutor {
                 }
 
                 // Merge results
-                sink.tryEmitNext(ChatChunk.parallelMerge(mergeStrategy));
+                ReactiveContextHelper.safeEmitNext(sink, ChatChunk.parallelMerge(mergeStrategy));
 
                 String mergedResult;
                 if ("summarize".equals(mergeStrategy)) {
@@ -143,10 +149,10 @@ public class ParallelExecutor {
                 }
 
                 // Emit merged result as text
-                sink.tryEmitNext(ChatChunk.text(mergedResult));
+                ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(mergedResult));
 
                 // Done
-                sink.tryEmitNext(chatHelper.buildDoneChunk(config, userMessage, mergedResult));
+                ReactiveContextHelper.safeEmitNext(sink, chatHelper.buildDoneChunk(config, userMessage, mergedResult));
                 sink.tryEmitComplete();
 
             } catch (Exception e) {

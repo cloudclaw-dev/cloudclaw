@@ -65,6 +65,7 @@ public class ChatEngine {
     private final SessionCompressor sessionCompressor;
     private final ContextCompressor contextCompressor;
     private final Executor chatExecutor;
+    private final Executor asyncTaskExecutor;
     private final run.cloudclaw.agent.prompt.PromptLogService promptLogService;
     private final run.cloudclaw.memory.injector.MemoryInjector memoryInjector;
     private final AgentTransferService agentTransferService;
@@ -80,6 +81,7 @@ public class ChatEngine {
                       SessionCompressor sessionCompressor,
                       ContextCompressor contextCompressor,
                       @Qualifier("chatExecutor") Executor chatExecutor,
+                      @Qualifier("asyncTaskExecutor") Executor asyncTaskExecutor,
                       run.cloudclaw.agent.prompt.PromptLogService promptLogService,
                       run.cloudclaw.memory.injector.MemoryInjector memoryInjector,
                       AgentTransferService agentTransferService,
@@ -94,6 +96,7 @@ public class ChatEngine {
         this.sessionCompressor = sessionCompressor;
         this.contextCompressor = contextCompressor;
         this.chatExecutor = chatExecutor;
+        this.asyncTaskExecutor = asyncTaskExecutor;
         this.promptLogService = promptLogService;
         this.memoryInjector = memoryInjector;
         this.agentTransferService = agentTransferService;
@@ -141,19 +144,17 @@ public class ChatEngine {
                         estimateTokens(config.getSystemPrompt()), null, null);
             }
 
-            Flux<ChatChunk> workflowFlux = workflowEngine.execute(userId, sessionId, userMessage, config);
+            Flux<ChatChunk> workflowFlux = workflowEngine.execute(userId, sessionId, userMessage, config, rawHistory);
 
             // Collect final response and save as assistant message
             StringBuilder workflowResponse = new StringBuilder();
             return workflowFlux.doOnNext(chunk -> {
-                // Fix C2: Re-bind SandboxContext in case of thread switch in Reactive stream
-                SandboxContext.bindToThread(sessionId);
+                ReactiveContextHelper.bindAll(sessionId);
                 if ("text".equals(chunk.getType()) && chunk.getContent() != null) {
                     workflowResponse.append(chunk.getContent());
                 }
             }).doOnComplete(() -> {
-                // Fix C2: Re-bind SandboxContext in case of thread switch in Reactive stream
-                SandboxContext.bindToThread(sessionId);
+                ReactiveContextHelper.bindAll(sessionId);
                 String responseText = workflowResponse.toString();
                 if (!responseText.isBlank()) {
                     Message assistantMsg = new Message();
@@ -311,7 +312,7 @@ public class ChatEngine {
 
         long startTime = System.currentTimeMillis();
         chatExecutor.execute(() -> {
-            SandboxContext.bindToThread(sessionId);
+            ReactiveContextHelper.bindAll(sessionId);
             try {
                 requestSpec.stream()
                         .chatResponse()
@@ -336,7 +337,7 @@ public class ChatEngine {
                                         return ChatChunk.text("");
                                     }
                                 }
-                            } catch (Exception ignored) {}
+                            } catch (Exception e) { log.warn("Failed to check returnDirect metadata: {}", e.getMessage()); }
 
                             // Tool call chunk
                             if (output.hasToolCalls()) {
@@ -365,19 +366,14 @@ public class ChatEngine {
                             return ChatChunk.text(content != null ? content : "");
                         })
                         .doOnNext(chunk -> {
-                            // Fix C2: Re-bind SandboxContext and MemoryTools context in case of thread switch
-                            SandboxContext.bindToThread(sessionId);
-                            MemoryTools.bindToThread(sessionId);
-                            // Fix: SSE chunk 日志级别从 info 降为 debug，避免高频日志污染生产环境
+                            ReactiveContextHelper.bindAll(sessionId);
                             if (chunk.getContent() != null && !chunk.getContent().isEmpty()) {
                                 log.debug("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
                             }
-                            sink.tryEmitNext(chunk);
+                            ReactiveContextHelper.safeEmitNext(sink, chunk);
                         })
                         .doOnError(e -> {
-                            // Fix C2: Re-bind context for error handler
-                            SandboxContext.bindToThread(sessionId);
-                            MemoryTools.bindToThread(sessionId);
+                            ReactiveContextHelper.bindAll(sessionId);
                             log.error("Chat stream error for session {}: {}", sessionId, e.getMessage());
                             if (e instanceof org.springframework.web.reactive.function.client.WebClientResponseException webEx) {
                                 log.error("DeepSeek response body: {}", webEx.getResponseBodyAsString());
@@ -400,9 +396,7 @@ public class ChatEngine {
                             sink.tryEmitError(e);
                         })
                         .doOnComplete(() -> {
-                            // Fix C2: Re-bind context for completion handler
-                            SandboxContext.bindToThread(sessionId);
-                            MemoryTools.bindToThread(sessionId);
+                            ReactiveContextHelper.bindAll(sessionId);
                             // Detect transfer via returnDirect mechanism (no text scanning)
                             TransferInfo transferInfo = transferRef.get();
 
@@ -423,7 +417,7 @@ public class ChatEngine {
                                 // Notify frontend with handoff event (shows workflow state in top bar)
                                 String displayName = agentTransferService.getDisplayName(config, transferInfo.getTargetPath());
                                 String fromName = agentTransferService.getDisplayName(config, finalActivePath);
-                                sink.tryEmitNext(ChatChunk.handoffEvent(fromName, displayName, transferInfo.getReason()));
+                                ReactiveContextHelper.safeEmitNext(sink, ChatChunk.handoffEvent(fromName, displayName, transferInfo.getReason()));
 
                                 // Re-invoke LLM with new agent configuration
                                 try {
@@ -456,6 +450,12 @@ public class ChatEngine {
                                         effectiveModelId, agentIdStr, createdMcpClients, startTime);
                             }
                         })
+                        .doFinally(signal -> {
+                            toolResolutionService.closeMcpClients(createdMcpClients);
+                            MemoryTools.clearContext(sessionId);
+                            SandboxContext.clear();
+                            ReactiveContextHelper.unbindAll();
+                        })
                         .subscribe();
             } catch (Exception e) {
                 log.error("Chat thread error for session {}: {}", sessionId, e.getMessage(), e);
@@ -463,8 +463,7 @@ public class ChatEngine {
                 sendErrorEvent(sink, errorCode, e.getMessage());
                 sink.tryEmitError(e);
             } finally {
-                toolResolutionService.closeMcpClients(createdMcpClients);
-                SandboxContext.unbindFromThread();
+                ReactiveContextHelper.unbindAll();
             }
         });
 
@@ -529,7 +528,7 @@ public class ChatEngine {
 
         // Notify frontend with handoff event (shows workflow state in top bar)
         String targetDisplayName = targetAgent.getDisplayName() != null ? targetAgent.getDisplayName() : targetAgent.getAgentName();
-        sink.tryEmitNext(ChatChunk.handoffEvent(rootConfig.getName(), targetDisplayName, ""));
+        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.handoffEvent(rootConfig.getName(), targetDisplayName, ""));
 
         // Stream target agent response
         StringBuilder targetResponse = new StringBuilder();
@@ -574,27 +573,20 @@ public class ChatEngine {
                     return ChatChunk.text(content != null ? content : "");
                 })
                 .doOnNext(chunk -> {
-                            // Fix C2: Re-bind context in transfer agent stream
-                            SandboxContext.bindToThread(sessionId);
-                            MemoryTools.bindToThread(sessionId);
-                            // Fix: SSE chunk 日志级别从 info 降为 debug，避免高频日志污染生产环境
+                            ReactiveContextHelper.bindAll(sessionId);
                             if (chunk.getContent() != null && !chunk.getContent().isEmpty()) {
                                 log.debug("SSE chunk: type={}, content={}", chunk.getType(), chunk.getContent().length() > 200 ? chunk.getContent().substring(0, 200) + "..." : chunk.getContent());
                             }
-                            sink.tryEmitNext(chunk);
+                            ReactiveContextHelper.safeEmitNext(sink, chunk);
                         })
                 .doOnError(e -> {
-                    // Fix C2: Re-bind context for error handler
-                    SandboxContext.bindToThread(sessionId);
-                    MemoryTools.bindToThread(sessionId);
+                    ReactiveContextHelper.bindAll(sessionId);
                     log.error("Transfer agent stream error: {}", e.getMessage());
                     ErrorCode errorCode = resolveErrorCode(e);
                     sendErrorEvent(sink, errorCode, e.getMessage());
                 })
                 .doOnComplete(() -> {
-                    // Fix C2: Re-bind context for completion handler
-                    SandboxContext.bindToThread(sessionId);
-                    MemoryTools.bindToThread(sessionId);
+                    ReactiveContextHelper.bindAll(sessionId);
                     // Save target agent's response
                     String resp = targetResponse.toString();
                     if (!resp.isBlank()) {
@@ -605,7 +597,6 @@ public class ChatEngine {
                         msg.setAgentName(targetAgent.getAgentName());
                         sessionService.saveMessage(msg);
                     }
-                    toolResolutionService.closeMcpClients(targetMcpClients);
                     log.info("Transfer agent response saved: path={}, len={}", targetPath, resp.length());
                     // Signal completion after transfer response is fully saved
                     if (onComplete != null) {
@@ -615,6 +606,9 @@ public class ChatEngine {
                             log.warn("Transfer completion callback failed: {}", e.getMessage());
                         }
                     }
+                })
+                .doFinally(signal -> {
+                    toolResolutionService.closeMcpClients(targetMcpClients);
                 })
                 .subscribe();
     }
@@ -679,7 +673,7 @@ public class ChatEngine {
                 .toolResultTokens(0)
                 .build();
 
-        sink.tryEmitNext(ChatChunk.builder()
+        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.builder()
                 .content("")
                 .toolCall(false)
                 .done(true)
@@ -714,7 +708,7 @@ public class ChatEngine {
      * and an optional detail message. The frontend can parse this JSON to show localized errors.
      */
     private void sendErrorEvent(Sinks.Many<ChatChunk> sink, ErrorCode code, String detail) {
-        sink.tryEmitNext(ChatChunk.error(code, detail));
+        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.error(code, detail));
     }
 
     /**
@@ -724,13 +718,8 @@ public class ChatEngine {
      */
     private ErrorCode resolveErrorCode(Throwable e) {
         if (e instanceof run.cloudclaw.common.exception.BusinessException be) {
-            // If the BusinessException was created with an ErrorCode, extract its numeric code
-            int code = be.getCode();
-            for (ErrorCode ec : ErrorCode.values()) {
-                if (ec.getCode() == code) {
-                    return ec;
-                }
-            }
+            ErrorCode ec = ErrorCode.fromCode(be.getCode());
+            if (ec != null) return ec;
         }
         // Default to LLM_CALL_FAILED for unrecognized exceptions in the chat pipeline
         return ErrorCode.LLM_CALL_FAILED;
@@ -985,10 +974,9 @@ public class ChatEngine {
                                       UUID assistantMsgId, AgentConfig config) {
         try {
             StringBuilder workflowResponse = new StringBuilder();
-            workflowEngine.execute(userId, sessionId, userMessage, config)
+            workflowEngine.execute(userId, sessionId, userMessage, config, List.of())
                     .doOnNext(chunk -> {
-                        // Fix C2: Re-bind SandboxContext in case of thread switch in Reactive stream
-                        SandboxContext.bindToThread(sessionId);
+                        ReactiveContextHelper.bindAll(sessionId);
                         if ("text".equals(chunk.getType()) && chunk.getContent() != null) {
                             workflowResponse.append(chunk.getContent());
                         }
@@ -1047,6 +1035,6 @@ public class ChatEngine {
             } catch (Exception e) {
                 log.warn("Failed to generate title for session {}: {}", sessionId, e.getMessage());
             }
-        }, chatExecutor);
+        }, asyncTaskExecutor);
     }
 }

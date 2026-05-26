@@ -163,17 +163,15 @@
 
                 <div class="workflow-node-body">
                   <!-- Node definition fields -->
-                  <template>
-                    <el-form-item :label="$t('agent.nodeName')" label-width="100px" style="margin-bottom: 8px">
-                      <el-input v-model="node.name" :placeholder="$t('agent.nodeNamePlaceholder')" />
-                    </el-form-item>
-                    <el-form-item :label="$t('agent.nodeDisplayName')" label-width="100px" style="margin-bottom: 8px">
-                      <el-input v-model="node.displayName" :placeholder="$t('agent.nodeDisplayNamePlaceholder')" />
-                    </el-form-item>
-                    <el-form-item :label="$t('agent.nodePrompt')" label-width="100px" style="margin-bottom: 8px">
-                      <el-input v-model="node.systemPrompt" type="textarea" :rows="3" :placeholder="$t('agent.nodePromptPlaceholder')" />
-                    </el-form-item>
-                  </template>
+                  <el-form-item :label="$t('agent.nodeName')" label-width="100px" style="margin-bottom: 8px">
+                    <el-input v-model="node.name" :placeholder="$t('agent.nodeNamePlaceholder')" />
+                  </el-form-item>
+                  <el-form-item :label="$t('agent.nodeDisplayName')" label-width="100px" style="margin-bottom: 8px">
+                    <el-input v-model="node.displayName" :placeholder="$t('agent.nodeDisplayNamePlaceholder')" />
+                  </el-form-item>
+                  <el-form-item :label="$t('agent.nodePrompt')" label-width="100px" style="margin-bottom: 8px">
+                    <el-input v-model="node.systemPrompt" type="textarea" :rows="3" :placeholder="$t('agent.nodePromptPlaceholder')" />
+                  </el-form-item>
 
                   <!-- Description (always visible, used by Router/Handoff/Supervisor) -->
                   <el-form-item :label="$t('agent.nodeDescription')" label-width="100px" style="margin-bottom: 8px">

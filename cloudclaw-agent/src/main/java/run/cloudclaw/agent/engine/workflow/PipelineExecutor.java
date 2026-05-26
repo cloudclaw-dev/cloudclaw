@@ -5,6 +5,8 @@ import run.cloudclaw.common.dto.ChatChunk;
 import run.cloudclaw.common.dto.workflow.PipelineConfig;
 import run.cloudclaw.common.dto.workflow.WorkflowDef;
 import run.cloudclaw.common.dto.workflow.WorkflowNode;
+import run.cloudclaw.common.model.Message;
+import run.cloudclaw.agent.engine.ReactiveContextHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -43,7 +45,8 @@ public class PipelineExecutor {
     }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
-                                    String userMessage, AgentConfig config, WorkflowDef workflow) {
+                                    String userMessage, AgentConfig config, WorkflowDef workflow,
+                                    List<Message> history) {
         Sinks.Many<ChatChunk> sink = Sinks.many().multicast().onBackpressureBuffer(256);
 
         List<WorkflowNode> nodes = workflow.getNodes();
@@ -70,7 +73,7 @@ public class PipelineExecutor {
                     log.info("Pipeline step {}/{}: node={}, sessionId={}", stepNum, resolvedNodes.size(), node.getName(), sessionId);
 
                     // Emit pipeline_step start event
-                    sink.tryEmitNext(ChatChunk.pipelineStep(stepNum, node.getDisplayName(),
+                    ReactiveContextHelper.safeEmitNext(sink, ChatChunk.pipelineStep(stepNum, node.getDisplayName(),
                             "Processing via " + node.getDisplayName() + "..."));
 
                     // Build system prompt for this node using PromptAssembler
@@ -104,13 +107,13 @@ public class PipelineExecutor {
                     WorkflowChatHelper.LogContext logCtx = new WorkflowChatHelper.LogContext(
                             sessionId, config.getAgentId().toString(), userId, node.getDisplayName());
                     Flux<String> stream = chatHelper.streamLlmWithTools(
-                            node.getModelId(), systemPrompt, effectiveInput, truncatedCallbacks, maxToolCalls, logCtx);
+                            node.getModelId(), systemPrompt, effectiveInput, truncatedCallbacks, maxToolCalls, history, logCtx);
 
                     StringBuilder stepResult = new StringBuilder();
                     stream.doOnNext(chunk -> {
                         stepResult.append(chunk);
                         // Stream text chunks to frontend as they arrive
-                        sink.tryEmitNext(ChatChunk.text(chunk));
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(chunk));
                     }).doOnError(e -> {
                         log.error("Pipeline step {} error: {}", stepNum, e.getMessage());
                     }).blockLast(); // Block to ensure sequential execution
@@ -127,7 +130,7 @@ public class PipelineExecutor {
                 }
 
                 // Done
-                sink.tryEmitNext(chatHelper.buildDoneChunk(config, userMessage, fullResponse));
+                ReactiveContextHelper.safeEmitNext(sink, chatHelper.buildDoneChunk(config, userMessage, fullResponse));
                 sink.tryEmitComplete();
 
             } catch (Exception e) {

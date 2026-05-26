@@ -12,11 +12,15 @@ import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.User;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.DisposableBean;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 
+import io.jsonwebtoken.ExpiredJwtException;
+
 import java.util.UUID;
 import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
 
 /**
@@ -29,7 +33,7 @@ import java.util.concurrent.TimeUnit;
 @Slf4j
 @Service
 @RequiredArgsConstructor
-public class AuthService {
+public class AuthService implements DisposableBean {
 
     private final UserRepository userRepository;
     private final JwtTokenProvider jwtTokenProvider;
@@ -39,13 +43,28 @@ public class AuthService {
     // Fix C3: Per-IP rate limiter for login — max 5 requests per 60 seconds (1 minute)
     private static final LoginRateLimiter loginRateLimiter = new LoginRateLimiter(5, 60_000);
 
-    static {
+    private final ScheduledExecutorService cleanupExecutor = Executors.newSingleThreadScheduledExecutor(r -> {
+        Thread t = new Thread(r, "login-rate-limiter-cleanup");
+        t.setDaemon(true);
+        return t;
+    });
+
+    {
         // Periodically clean up expired rate limiter entries
-        Executors.newSingleThreadScheduledExecutor(r -> {
-            Thread t = new Thread(r, "login-rate-limiter-cleanup");
-            t.setDaemon(true);
-            return t;
-        }).scheduleAtFixedRate(loginRateLimiter::cleanup, 5, 5, TimeUnit.MINUTES);
+        cleanupExecutor.scheduleAtFixedRate(loginRateLimiter::cleanup, 5, 5, TimeUnit.MINUTES);
+    }
+
+    @Override
+    public void destroy() {
+        cleanupExecutor.shutdown();
+        try {
+            if (!cleanupExecutor.awaitTermination(5, TimeUnit.SECONDS)) {
+                cleanupExecutor.shutdownNow();
+            }
+        } catch (InterruptedException e) {
+            cleanupExecutor.shutdownNow();
+            Thread.currentThread().interrupt();
+        }
     }
 
     /**
@@ -114,40 +133,45 @@ public class AuthService {
             throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED);
         }
 
-        String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
+        try {
+            String userId = jwtTokenProvider.getUserIdFromToken(refreshToken);
 
-        // Verify token type is "refresh"
-        String tokenType = jwtTokenProvider.getClaimFromToken(refreshToken, "type");
-        if (!"refresh".equals(tokenType)) {
-            log.warn("Token refresh failed: token is not a refresh token for userId: {}", userId);
-            throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN);
+            // Verify token type is "refresh"
+            String tokenType = jwtTokenProvider.getClaimFromToken(refreshToken, "type");
+            if (!"refresh".equals(tokenType)) {
+                log.warn("Token refresh failed: token is not a refresh token for userId: {}", userId);
+                throw new BusinessException(ErrorCode.AUTH_INVALID_TOKEN);
+            }
+
+            User user = userRepository.findById(UUID.fromString(userId))
+                    .orElseThrow(() -> {
+                        log.warn("Token refresh failed: user not found for userId: {}", userId);
+                        return new BusinessException(ErrorCode.NOT_FOUND);
+                    });
+
+            if (!user.getEnabled()) {
+                log.warn("Token refresh failed: account disabled for userId: {}", userId);
+                throw new BusinessException(ErrorCode.AUTH_ACCOUNT_DISABLED);
+            }
+
+            String roleString = user.getRole().name().toLowerCase();
+            String newAccessToken = jwtTokenProvider.generateAccessToken(
+                    userId, user.getUsername(), roleString
+            );
+
+            // Fix C4: Issue a new refresh token on every use (rotation)
+            String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId);
+
+            log.info("Token refresh successful for userId: {}", userId);
+
+            return new LoginResponse(
+                    newAccessToken,
+                    newRefreshToken,
+                    tokenProperties.getAccessTokenTtl().getSeconds()
+            );
+        } catch (ExpiredJwtException e) {
+            log.warn("Token refresh failed: token expired during processing");
+            throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED);
         }
-
-        User user = userRepository.findById(UUID.fromString(userId))
-                .orElseThrow(() -> {
-                    log.warn("Token refresh failed: user not found for userId: {}", userId);
-                    return new BusinessException(ErrorCode.NOT_FOUND);
-                });
-
-        if (!user.getEnabled()) {
-            log.warn("Token refresh failed: account disabled for userId: {}", userId);
-            throw new BusinessException(ErrorCode.AUTH_ACCOUNT_DISABLED);
-        }
-
-        String roleString = user.getRole().name().toLowerCase();
-        String newAccessToken = jwtTokenProvider.generateAccessToken(
-                userId, user.getUsername(), roleString
-        );
-
-        // Fix C4: Issue a new refresh token on every use (rotation)
-        String newRefreshToken = jwtTokenProvider.generateRefreshToken(userId);
-
-        log.info("Token refresh successful for userId: {}", userId);
-
-        return new LoginResponse(
-                newAccessToken,
-                newRefreshToken,
-                tokenProperties.getAccessTokenTtl().getSeconds()
-        );
     }
 }

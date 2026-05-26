@@ -15,6 +15,7 @@ import org.springframework.ai.tool.definition.ToolDefinition;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.concurrent.atomic.AtomicInteger;
 
 /**
  * A decorating ToolCallingManager that:
@@ -29,7 +30,7 @@ public class LimitedToolCallingManager implements ToolCallingManager {
     private final ToolCallingManager delegate;
     private final int maxToolCalls;
     private final int maxToolResultChars;
-    private int callCount = 0;
+    private final AtomicInteger callCount = new AtomicInteger(0);
 
     public LimitedToolCallingManager(ToolCallingManager delegate, int maxToolCalls) {
         this(delegate, maxToolCalls, 3000);
@@ -48,8 +49,8 @@ public class LimitedToolCallingManager implements ToolCallingManager {
 
     @Override
     public ToolExecutionResult executeToolCalls(Prompt prompt, ChatResponse chatResponse) {
-        callCount++;
-        if (callCount > maxToolCalls) {
+        callCount.incrementAndGet();
+        if (callCount.get() > maxToolCalls) {
             // Limit reached: return current response directly, no more tool execution
             List<Message> history =
                     new ArrayList<>(prompt.getInstructions());
@@ -61,10 +62,10 @@ public class LimitedToolCallingManager implements ToolCallingManager {
     }
 
     public int getCallCount() {
-        return callCount;
+        return callCount.get();
     }
 
     public void reset() {
-        callCount = 0;
+        callCount.set(0);
     }
 }

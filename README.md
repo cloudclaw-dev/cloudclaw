@@ -68,7 +68,7 @@ export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
 # Run
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.3.jar
 ```
 
 Open http://localhost:8080/ and login with `admin / admin123`.
@@ -89,7 +89,7 @@ mvn clean package -DskipTests
 export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.2-SNAPSHOT.jar \
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.3.jar \
   --spring.profiles.active=cluster
 ```
 

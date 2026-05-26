@@ -3,6 +3,7 @@ package run.cloudclaw.auth.security;
 import java.time.Instant;
 import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
+import java.util.concurrent.atomic.AtomicLong;
 
 /**
  * Simple per-IP rate limiter for the login endpoint.
@@ -13,15 +14,27 @@ public class LoginRateLimiter {
 
     private final int maxRequests;
     private final long windowMillis;
+    private final int maxEntries;
     private final Map<String, long[]> requestWindows = new ConcurrentHashMap<>();
+    private final AtomicLong approximateSize = new AtomicLong(0);
 
     /**
      * @param maxRequests  maximum number of requests allowed in the window
      * @param windowMillis window duration in milliseconds
      */
     public LoginRateLimiter(int maxRequests, long windowMillis) {
+        this(maxRequests, windowMillis, 10000);
+    }
+
+    /**
+     * @param maxRequests  maximum number of requests allowed in the window
+     * @param windowMillis window duration in milliseconds
+     * @param maxEntries   maximum number of tracked IP entries
+     */
+    public LoginRateLimiter(int maxRequests, long windowMillis, int maxEntries) {
         this.maxRequests = maxRequests;
         this.windowMillis = windowMillis;
+        this.maxEntries = maxEntries;
     }
 
     /**
@@ -31,7 +44,14 @@ public class LoginRateLimiter {
      */
     public boolean tryAcquire(String key) {
         long now = Instant.now().toEpochMilli();
-        long[] timestamps = requestWindows.computeIfAbsent(key, k -> new long[maxRequests]);
+        // Reject new IPs if we've reached the max entries limit
+        if (!requestWindows.containsKey(key) && approximateSize.get() >= maxEntries) {
+            return false;
+        }
+        long[] timestamps = requestWindows.computeIfAbsent(key, k -> {
+            approximateSize.incrementAndGet();
+            return new long[maxRequests];
+        });
 
         synchronized (timestamps) {
             // Find an expired slot or an unused slot
@@ -59,6 +79,7 @@ public class LoginRateLimiter {
                         return false;
                     }
                 }
+                approximateSize.decrementAndGet();
                 return true;
             }
         });

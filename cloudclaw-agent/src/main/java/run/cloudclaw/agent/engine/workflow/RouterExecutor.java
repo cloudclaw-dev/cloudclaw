@@ -5,6 +5,8 @@ import run.cloudclaw.common.dto.ChatChunk;
 import run.cloudclaw.common.dto.workflow.RouterConfig;
 import run.cloudclaw.common.dto.workflow.WorkflowDef;
 import run.cloudclaw.common.dto.workflow.WorkflowNode;
+import run.cloudclaw.common.model.Message;
+import run.cloudclaw.agent.engine.ReactiveContextHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -46,7 +48,8 @@ public class RouterExecutor {
     }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
-                                    String userMessage, AgentConfig config, WorkflowDef workflow) {
+                                    String userMessage, AgentConfig config, WorkflowDef workflow,
+                                    List<Message> history) {
         Sinks.Many<ChatChunk> sink = Sinks.many().multicast().onBackpressureBuffer(256);
 
         List<WorkflowNode> nodes = workflow.getNodes();
@@ -78,10 +81,10 @@ public class RouterExecutor {
                 String routingResponse;
                 try {
                     routingResponse = chatHelper.callLlmWithTools(config.getModelId(), routerPrompt,
-                            userMessage, routingTools, maxToolCalls, routerLogCtx);
+                            userMessage, routingTools, maxToolCalls, history, routerLogCtx);
                 } catch (Exception e) {
                     log.warn("Router LLM call with tools failed, falling back to direct: {}", e.getMessage());
-                    routingResponse = chatHelper.callLlm(config.getModelId(), routerPrompt, userMessage, routerLogCtx);
+                    routingResponse = chatHelper.callLlm(config.getModelId(), routerPrompt, userMessage, history, routerLogCtx);
                 }
 
                 String finalResponse;
@@ -92,7 +95,7 @@ public class RouterExecutor {
                     // No routing tool was called — LLM responded directly
                     if (allowFallback) {
                         log.info("Router: no route selected, using fallback (direct response)");
-                        sink.tryEmitNext(ChatChunk.text(routingResponse));
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(routingResponse));
                         finalResponse = routingResponse;
                     } else {
                         // No fallback — route to the first node as default
@@ -114,7 +117,7 @@ public class RouterExecutor {
                             .findFirst()
                             .orElseThrow();
 
-                    sink.tryEmitNext(ChatChunk.routerSelect("root", selectedNode.getDisplayName(), selectedReason.get()));
+                    ReactiveContextHelper.safeEmitNext(sink, ChatChunk.routerSelect("root", selectedNode.getDisplayName(), selectedReason.get()));
 
                     // Build prompt for selected node using PromptAssembler
                     String nodePrompt = chatHelper.buildNodeSystemPrompt(selectedNode, config, userId, sessionId, userMessage);
@@ -132,19 +135,19 @@ public class RouterExecutor {
                     WorkflowChatHelper.LogContext nodeLogCtx = new WorkflowChatHelper.LogContext(
                             sessionId, config.getAgentId().toString(), userId, selectedNode.getDisplayName());
                     Flux<String> stream = chatHelper.streamLlmWithTools(
-                            selectedNode.getModelId(), nodePrompt, userMessage, truncatedTools, maxToolCalls, nodeLogCtx);
+                            selectedNode.getModelId(), nodePrompt, userMessage, truncatedTools, maxToolCalls, history, nodeLogCtx);
 
                     StringBuilder response = new StringBuilder();
                     stream.doOnNext(chunk -> {
                         response.append(chunk);
-                        sink.tryEmitNext(ChatChunk.text(chunk));
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(chunk));
                     }).blockLast();
 
                     finalResponse = response.toString();
                 }
 
                 // Done
-                sink.tryEmitNext(chatHelper.buildDoneChunk(config, userMessage,
+                ReactiveContextHelper.safeEmitNext(sink, chatHelper.buildDoneChunk(config, userMessage,
                         finalResponse != null ? finalResponse : ""));
                 sink.tryEmitComplete();
 

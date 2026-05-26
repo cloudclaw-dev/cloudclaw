@@ -246,4 +246,113 @@ public class WorkflowChatHelper {
     protected int estimateTokens(String text) {
         return tokenEstimator.estimateTokens(text);
     }
+
+    // ===== History-aware methods =====
+
+    /**
+     * Convert session messages to Spring AI messages for LLM context.
+     * Filters out tool_call intermediate messages to avoid polluting context.
+     */
+    public List<org.springframework.ai.chat.messages.Message> toAiMessages(List<run.cloudclaw.common.model.Message> history) {
+        List<org.springframework.ai.chat.messages.Message> aiMessages = new ArrayList<>();
+        if (history == null) return aiMessages;
+        for (var msg : history) {
+            String role = msg.getRole();
+            String content = msg.getContent();
+            if (content == null || content.isBlank()) continue;
+            // Skip tool_call intermediate messages
+            if ("tool_call".equals(role)) continue;
+            switch (role) {
+                case "user" -> aiMessages.add(new org.springframework.ai.chat.messages.UserMessage(content));
+                case "assistant" -> aiMessages.add(new org.springframework.ai.chat.messages.AssistantMessage(content));
+                case "system" -> aiMessages.add(new org.springframework.ai.chat.messages.SystemMessage(content));
+                case "summary" -> aiMessages.add(new org.springframework.ai.chat.messages.SystemMessage("[Conversation Summary]\n" + content));
+                default -> {} // skip unknown roles
+            }
+        }
+        return aiMessages;
+    }
+
+    /**
+     * Streaming LLM call with tools and conversation history.
+     */
+    public reactor.core.publisher.Flux<String> streamLlmWithTools(
+            String modelId, String systemPrompt, String userMessage,
+            List<ToolCallback> toolCallbacks, int maxToolCalls,
+            List<run.cloudclaw.common.model.Message> history, LogContext logCtx) {
+        logPrompt(logCtx, modelId, "system", systemPrompt);
+        logPrompt(logCtx, modelId, "user", userMessage);
+
+        ChatClient chatClient = llmRouteService.getChatClient(modelId);
+        ChatClient.ChatClientRequestSpec spec = chatClient.prompt()
+                .system(systemPrompt)
+                .user(userMessage);
+
+        // Add conversation history
+        List<org.springframework.ai.chat.messages.Message> aiMessages = toAiMessages(history);
+        if (!aiMessages.isEmpty()) {
+            spec.messages(aiMessages);
+        }
+
+        if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
+            ToolCallingManager toolCallingManager = new run.cloudclaw.agent.engine.LimitedToolCallingManager(
+                    DefaultToolCallingManager.builder().build(),
+                    maxToolCalls
+            );
+            ToolCallAdvisor toolCallAdvisor = ToolCallAdvisor.builder()
+                    .toolCallingManager(toolCallingManager)
+                    .streamToolCallResponses(false)
+                    .build();
+            spec.toolCallbacks(toolCallbacks).advisors(toolCallAdvisor);
+        }
+
+        return spec.stream().content();
+    }
+
+    /**
+     * Simple LLM call with conversation history (no tools).
+     */
+    public String callLlm(String modelId, String systemPrompt, String userMessage,
+                           List<run.cloudclaw.common.model.Message> history, LogContext logCtx) {
+        logPrompt(logCtx, modelId, "system", systemPrompt);
+        logPrompt(logCtx, modelId, "user", userMessage);
+        ChatClient chatClient = llmRouteService.getChatClient(modelId);
+        var spec = chatClient.prompt()
+                .system(systemPrompt)
+                .user(userMessage);
+        List<org.springframework.ai.chat.messages.Message> aiMessages = toAiMessages(history);
+        if (!aiMessages.isEmpty()) {
+            spec.messages(aiMessages);
+        }
+        return spec.call().content();
+    }
+
+    /**
+     * LLM call with tools and conversation history.
+     */
+    public String callLlmWithTools(String modelId, String systemPrompt, String userMessage,
+                                    List<ToolCallback> toolCallbacks, int maxToolCalls,
+                                    List<run.cloudclaw.common.model.Message> history, LogContext logCtx) {
+        logPrompt(logCtx, modelId, "system", systemPrompt);
+        logPrompt(logCtx, modelId, "user", userMessage);
+        ChatClient chatClient = llmRouteService.getChatClient(modelId);
+        var spec = chatClient.prompt()
+                .system(systemPrompt)
+                .user(userMessage);
+        List<org.springframework.ai.chat.messages.Message> aiMessages = toAiMessages(history);
+        if (!aiMessages.isEmpty()) {
+            spec.messages(aiMessages);
+        }
+        if (toolCallbacks != null && !toolCallbacks.isEmpty()) {
+            ToolCallingManager toolCallingManager = new run.cloudclaw.agent.engine.LimitedToolCallingManager(
+                    DefaultToolCallingManager.builder().build(),
+                    maxToolCalls
+            );
+            ToolCallAdvisor toolCallAdvisor = ToolCallAdvisor.builder()
+                    .toolCallingManager(toolCallingManager)
+                    .build();
+            spec.toolCallbacks(toolCallbacks).advisors(toolCallAdvisor);
+        }
+        return spec.call().content();
+    }
 }

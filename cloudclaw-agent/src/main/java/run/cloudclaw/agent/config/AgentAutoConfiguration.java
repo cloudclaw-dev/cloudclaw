@@ -41,6 +41,7 @@ public class AgentAutoConfiguration {
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(30);
         executor.initialize();
+        executor.getThreadPoolExecutor().allowCoreThreadTimeOut(true);
         log.info("Chat async executor initialized: core=4, max=16, queue=100");
         return executor;
     }
@@ -56,7 +57,39 @@ public class AgentAutoConfiguration {
         executor.setWaitForTasksToCompleteOnShutdown(true);
         executor.setAwaitTerminationSeconds(60);
         executor.initialize();
+        // Allow core threads to time out so the pool can shrink when idle
+        executor.getThreadPoolExecutor().allowCoreThreadTimeOut(true);
         log.info("Workflow executor initialized: core=4, max=16, queue=200");
+        return executor;
+    }
+
+    @Bean("parallelTaskExecutor")
+    public Executor parallelTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(8);
+        executor.setQueueCapacity(50);
+        executor.setThreadNamePrefix("parallel-task-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(30);
+        executor.initialize();
+        log.info("Parallel task executor initialized: core=2, max=8, queue=50");
+        return executor;
+    }
+
+    @Bean("asyncTaskExecutor")
+    public Executor asyncTaskExecutor() {
+        ThreadPoolTaskExecutor executor = new ThreadPoolTaskExecutor();
+        executor.setCorePoolSize(2);
+        executor.setMaxPoolSize(4);
+        executor.setQueueCapacity(200);
+        executor.setThreadNamePrefix("async-task-");
+        executor.setRejectedExecutionHandler(new ThreadPoolExecutor.CallerRunsPolicy());
+        executor.setWaitForTasksToCompleteOnShutdown(true);
+        executor.setAwaitTerminationSeconds(15);
+        executor.initialize();
+        log.info("Async task executor initialized: core=2, max=4, queue=200");
         return executor;
     }
 }

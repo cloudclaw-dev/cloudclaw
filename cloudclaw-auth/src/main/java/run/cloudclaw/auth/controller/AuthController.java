@@ -8,6 +8,7 @@ import run.cloudclaw.common.dto.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
 import lombok.extern.slf4j.Slf4j;
+import org.springframework.beans.factory.annotation.Value;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -26,6 +27,9 @@ import org.springframework.web.bind.annotation.RestController;
 public class AuthController {
 
     private final AuthService authService;
+
+    @Value("${cloudclaw.auth.trust-forwarded-headers:false}")
+    private boolean trustForwardedHeaders;
 
     public AuthController(AuthService authService) {
         this.authService = authService;
@@ -61,13 +65,15 @@ public class AuthController {
     }
 
     private String getClientIp(HttpServletRequest request) {
-        String ip = request.getHeader("X-Forwarded-For");
-        if (ip != null && !ip.isEmpty()) {
-            return ip.split(",")[0].trim();
-        }
-        ip = request.getHeader("X-Real-IP");
-        if (ip != null && !ip.isEmpty()) {
-            return ip.trim();
+        if (trustForwardedHeaders) {
+            String ip = request.getHeader("X-Forwarded-For");
+            if (ip != null && !ip.isEmpty()) {
+                return ip.split(",")[0].trim();
+            }
+            ip = request.getHeader("X-Real-IP");
+            if (ip != null && !ip.isEmpty()) {
+                return ip.trim();
+            }
         }
         return request.getRemoteAddr();
     }

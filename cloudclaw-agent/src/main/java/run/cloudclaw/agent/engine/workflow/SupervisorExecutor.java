@@ -5,6 +5,8 @@ import run.cloudclaw.common.dto.ChatChunk;
 import run.cloudclaw.common.dto.workflow.SupervisorConfig;
 import run.cloudclaw.common.dto.workflow.WorkflowDef;
 import run.cloudclaw.common.dto.workflow.WorkflowNode;
+import run.cloudclaw.common.model.Message;
+import run.cloudclaw.agent.engine.ReactiveContextHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -38,6 +40,9 @@ import java.util.stream.Collectors;
 @Slf4j
 public class SupervisorExecutor {
 
+    private static final com.fasterxml.jackson.databind.ObjectMapper MAPPER =
+            new com.fasterxml.jackson.databind.ObjectMapper();
+
     private final WorkflowNodeResolver nodeResolver;
     private final WorkflowChatHelper chatHelper;
     private final Executor workflowExecutor;
@@ -51,7 +56,8 @@ public class SupervisorExecutor {
     }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
-                                    String userMessage, AgentConfig config, WorkflowDef workflow) {
+                                    String userMessage, AgentConfig config, WorkflowDef workflow,
+                                    List<Message> history) {
         Sinks.Many<ChatChunk> sink = Sinks.many().multicast().onBackpressureBuffer(256);
 
         List<WorkflowNode> nodes = workflow.getNodes();
@@ -71,7 +77,7 @@ public class SupervisorExecutor {
                 List<String> agentNames = resolvedNodes.stream()
                         .map(ResolvedNodeAgent::getDisplayName)
                         .collect(Collectors.toList());
-                sink.tryEmitNext(ChatChunk.supervisorPlan(agentNames));
+                ReactiveContextHelper.safeEmitNext(sink, ChatChunk.supervisorPlan(agentNames));
 
                 // Build supervisor system prompt
                 String supervisorPrompt = buildSupervisorPrompt(config, resolvedNodes, supervisorConfig);
@@ -97,10 +103,10 @@ public class SupervisorExecutor {
                     String supervisorResponse;
                     try {
                         supervisorResponse = chatHelper.callLlmWithTools(config.getModelId(), supervisorPrompt,
-                                supervisorInput, delegateTools, maxToolCalls, supervisorLogCtx);
+                                supervisorInput, delegateTools, maxToolCalls, history, supervisorLogCtx);
                     } catch (Exception e) {
                         log.warn("Supervisor tool call failed, falling back to direct: {}", e.getMessage());
-                        supervisorResponse = chatHelper.callLlm(config.getModelId(), supervisorPrompt, supervisorInput, supervisorLogCtx);
+                        supervisorResponse = chatHelper.callLlm(config.getModelId(), supervisorPrompt, supervisorInput, history, supervisorLogCtx);
                     }
 
                     // Check if delegation happened
@@ -112,7 +118,7 @@ public class SupervisorExecutor {
                                 .findFirst().orElseThrow();
 
                         // Emit delegate SSE event BEFORE executing
-                        sink.tryEmitNext(ChatChunk.supervisorDelegate(targetNode.getDisplayName(), delegatedTask.get()));
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.supervisorDelegate(targetNode.getDisplayName(), delegatedTask.get()));
 
                         // Execute the delegated sub-agent
                         String nodePrompt = chatHelper.buildNodeSystemPrompt(targetNode, config, userId, sessionId, userMessage);
@@ -128,7 +134,7 @@ public class SupervisorExecutor {
                         }
 
                         // Emit result SSE event AFTER executing
-                        sink.tryEmitNext(ChatChunk.supervisorResult(targetNode.getDisplayName(), result));
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.supervisorResult(targetNode.getDisplayName(), result));
 
                         // Feed result back to supervisor for next iteration
                         conversationContext = new StringBuilder();
@@ -143,7 +149,7 @@ public class SupervisorExecutor {
                         finalResult = result;
                     } else {
                         // Supervisor responded directly (satisfied with results or initial response)
-                        sink.tryEmitNext(ChatChunk.supervisorPlan(
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.supervisorPlan(
                                 List.of("Supervisor provided final response (iteration " + iteration + ")")));
                         finalResult = supervisorResponse;
                         break;
@@ -155,10 +161,10 @@ public class SupervisorExecutor {
                 }
 
                 // Emit final result as text
-                sink.tryEmitNext(ChatChunk.text(finalResult));
+                ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(finalResult));
 
                 // Done
-                sink.tryEmitNext(chatHelper.buildDoneChunk(config, userMessage, finalResult));
+                ReactiveContextHelper.safeEmitNext(sink, chatHelper.buildDoneChunk(config, userMessage, finalResult));
                 sink.tryEmitComplete();
 
             } catch (Exception e) {
@@ -242,8 +248,7 @@ public class SupervisorExecutor {
                     String task = "";
                     try {
                         if (toolInput != null && !toolInput.isBlank()) {
-                            com.fasterxml.jackson.databind.ObjectMapper mapper = new com.fasterxml.jackson.databind.ObjectMapper();
-                            com.fasterxml.jackson.databind.JsonNode jsonNode = mapper.readTree(toolInput);
+                            com.fasterxml.jackson.databind.JsonNode jsonNode = MAPPER.readTree(toolInput);
                             if (jsonNode.has("task")) task = jsonNode.get("task").asText();
                         }
                     } catch (Exception e) {

@@ -43,19 +43,21 @@ public class WorkflowEngine {
      * @return flux of chat chunks including workflow-specific events
      */
     public Flux<ChatChunk> execute(String userId, String sessionId,
-                                    String userMessage, AgentConfig config) {
+                                    String userMessage, AgentConfig config,
+                                    java.util.List<run.cloudclaw.common.model.Message> history) {
         WorkflowDef workflow = config.getWorkflow();
         WorkflowMode mode = workflow.getMode();
 
-        log.info("Executing workflow: mode={}, nodes={}, sessionId={}",
-                mode, workflow.getNodes() != null ? workflow.getNodes().size() : 0, sessionId);
+        log.info("Executing workflow: mode={}, nodes={}, sessionId={}, historyMessages={}",
+                mode, workflow.getNodes() != null ? workflow.getNodes().size() : 0, sessionId,
+                history != null ? history.size() : 0);
 
         return switch (mode) {
-            case PIPELINE   -> pipelineExecutor.execute(userId, sessionId, userMessage, config, workflow);
-            case PARALLEL   -> parallelExecutor.execute(userId, sessionId, userMessage, config, workflow);
-            case ROUTER     -> routerExecutor.execute(userId, sessionId, userMessage, config, workflow);
-            case SUPERVISOR -> supervisorExecutor.execute(userId, sessionId, userMessage, config, workflow);
-            case HANDOFF    -> handoffExecutor.execute(userId, sessionId, userMessage, config, workflow);
+            case PIPELINE   -> pipelineExecutor.execute(userId, sessionId, userMessage, config, workflow, history);
+            case PARALLEL   -> parallelExecutor.execute(userId, sessionId, userMessage, config, workflow, history);
+            case ROUTER     -> routerExecutor.execute(userId, sessionId, userMessage, config, workflow, history);
+            case SUPERVISOR -> supervisorExecutor.execute(userId, sessionId, userMessage, config, workflow, history);
+            case HANDOFF    -> handoffExecutor.execute(userId, sessionId, userMessage, config, workflow, history);
         };
     }
 }

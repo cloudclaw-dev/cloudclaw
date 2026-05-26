@@ -5,6 +5,41 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.3] - 2026-05-26
+
+### Added
+
+- **Async Programming Optimization** -- Comprehensive thread pool and reactive programming improvements:
+  - New `parallelTaskExecutor` (core=2, max=8) for ParallelExecutor, eliminating thread pool nesting deadlock risk
+  - New `asyncTaskExecutor` (core=2, max=4) for `@Async` tasks and background work
+  - `PromptLogService` uses explicit `@Async("asyncTaskExecutor")` instead of default unbounded executor
+  - `CloudClawApplication` implements `AsyncConfigurer` to set default async executor
+  - `ReactiveContextHelper` utility class centralizes ThreadLocal binding (SandboxContext + MemoryTools)
+  - `generateTitleAsync()` uses dedicated executor instead of sharing chatExecutor
+  - WorkflowExecutor core threads now time out when idle (`allowCoreThreadTimeOut`)
+  - MCP client cleanup moved to `doFinally()` signal, ensuring proper cleanup on all paths
+
+### Fixed
+
+- **MemoryTools contextMap memory leak** -- Exception paths now properly clear context via `doFinally`
+- **LimitedToolCallingManager thread safety** -- `int callCount` replaced with `AtomicInteger`
+- **PromptLogService cleanupOldLogs concurrency** -- Added `synchronized` to prevent duplicate DB operations
+- **targetMcpClients resource leak** -- Close moved from `doOnComplete` to `doFinally`, covers error paths
+- **ObjectMapper repeated creation** -- `AgentTransferService` and `SupervisorExecutor` now reuse static instance
+- **LoginRateLimiter unbounded map** -- Added `maxEntries` limit (default 10000) to prevent OOM under DDoS
+- **catch(Exception ignored) swallowing exceptions** -- Replaced with `log.warn()` for debugging
+- **SessionCompressor multi-byte character corruption** -- Surrogate pair boundary check before truncation
+- **resolveErrorCode O(n) scan** -- `ErrorCode` now has static Map for O(1) lookup by code
+- **chatExecutor core threads never reclaimed** -- Added `allowCoreThreadTimeOut(true)`
+- **Sinks buffer overflow silent loss** -- Emits user-visible warning when backpressure drops messages
+- **X-Forwarded-For IP spoofing** -- New config `cloudclaw.auth.trust-forwarded-headers` (default false)
+- **JWT token race condition** -- `refreshToken` catches `ExpiredJwtException` and returns 401 instead of 500
+- **ScheduledExecutorService not managed** -- `AuthService` implements `DisposableBean` for graceful shutdown
+
+### Changed
+
+- Version upgraded from `1.0.3-SNAPSHOT` to `1.0.3` release
+
 ## [1.0.2] - 2026-05-25
 
 ### Added

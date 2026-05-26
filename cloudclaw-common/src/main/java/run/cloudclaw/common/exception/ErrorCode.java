@@ -2,6 +2,11 @@ package run.cloudclaw.common.exception;
 
 import lombok.Getter;
 
+import java.util.Arrays;
+import java.util.Map;
+import java.util.function.Function;
+import java.util.stream.Collectors;
+
 /**
  * Unified error codes for the application.
  * Note: These are BUSINESS error codes (not HTTP status codes).
@@ -69,8 +74,18 @@ public enum ErrorCode {
     private final int code;
     private final String i18nKey;
 
+    private static final Map<Integer, ErrorCode> CODE_MAP = Arrays.stream(values())
+            .collect(Collectors.toUnmodifiableMap(ErrorCode::getCode, Function.identity()));
+
     ErrorCode(int code, String i18nKey) {
         this.code = code;
         this.i18nKey = i18nKey;
+    }
+
+    /**
+     * Look up an ErrorCode by its numeric code using a pre-built Map (O(1)).
+     */
+    public static ErrorCode fromCode(int code) {
+        return CODE_MAP.get(code);
     }
 }

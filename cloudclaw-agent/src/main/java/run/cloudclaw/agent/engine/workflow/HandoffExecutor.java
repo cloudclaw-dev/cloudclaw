@@ -7,6 +7,7 @@ import run.cloudclaw.common.dto.workflow.WorkflowDef;
 import run.cloudclaw.common.dto.workflow.WorkflowNode;
 import run.cloudclaw.common.model.Message;
 import run.cloudclaw.session.service.SessionService;
+import run.cloudclaw.agent.engine.ReactiveContextHelper;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.tool.ToolCallback;
@@ -56,7 +57,8 @@ public class HandoffExecutor {
     }
 
     public Flux<ChatChunk> execute(String userId, String sessionId,
-                                    String userMessage, AgentConfig config, WorkflowDef workflow) {
+                                    String userMessage, AgentConfig config, WorkflowDef workflow,
+                                    List<Message> history) {
         Sinks.Many<ChatChunk> sink = Sinks.many().multicast().onBackpressureBuffer(256);
 
         List<WorkflowNode> nodes = workflow.getNodes();
@@ -81,7 +83,7 @@ public class HandoffExecutor {
                 if (activeNodeId == null || "root".equals(activeNodeId)) {
                     // Use the first node as the starting node for handoff mode
                     activeNode = resolvedNodes.get(0);
-                    sink.tryEmitNext(ChatChunk.handoffEvent("root", activeNode.getDisplayName(), "Starting handoff session"));
+                    ReactiveContextHelper.safeEmitNext(sink, ChatChunk.handoffEvent("root", activeNode.getDisplayName(), "Starting handoff session"));
                     sessionService.updateActiveAgentPath(sessionId, userId, activeNode.getNodeId());
                 } else {
                     activeNode = resolvedNodes.stream()
@@ -120,12 +122,12 @@ public class HandoffExecutor {
                     WorkflowChatHelper.LogContext logCtx = new WorkflowChatHelper.LogContext(
                             sessionId, config.getAgentId().toString(), userId, activeNode.getDisplayName());
                     Flux<String> stream = chatHelper.streamLlmWithTools(
-                            activeNode.getModelId(), systemPrompt, userMessage, truncatedTools, maxToolCalls, logCtx);
+                            activeNode.getModelId(), systemPrompt, userMessage, truncatedTools, maxToolCalls, history, logCtx);
 
                     StringBuilder response = new StringBuilder();
                     stream.doOnNext(chunk -> {
                         response.append(chunk);
-                        sink.tryEmitNext(ChatChunk.text(chunk));
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(chunk));
                     }).blockLast();
 
                     allResponses.append(response.toString());
@@ -144,7 +146,7 @@ public class HandoffExecutor {
                             .findFirst().orElseThrow();
 
                     // Emit handoff SSE event
-                    sink.tryEmitNext(ChatChunk.handoffEvent(activeNode.getDisplayName(),
+                    ReactiveContextHelper.safeEmitNext(sink, ChatChunk.handoffEvent(activeNode.getDisplayName(),
                             targetNode.getDisplayName(), handoffReason.get()));
 
                     // Save transfer system message to conversation history
@@ -171,7 +173,7 @@ public class HandoffExecutor {
                 }
 
                 // Done
-                sink.tryEmitNext(chatHelper.buildDoneChunk(config, userMessage, allResponses.toString()));
+                ReactiveContextHelper.safeEmitNext(sink, chatHelper.buildDoneChunk(config, userMessage, allResponses.toString()));
                 sink.tryEmitComplete();
 
             } catch (Exception e) {

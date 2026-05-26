@@ -21,7 +21,7 @@ public class PromptLogService {
 
     private static final int MAX_PROMPT_LOGS = 1000;
 
-    @Async
+    @Async("asyncTaskExecutor")
     public void logAsync(String sessionId, String agentId, String userId,
                          String modelId, String role, String content,
                          Integer tokenCount, String toolCalls, Integer durationMs) {
@@ -46,7 +46,7 @@ public class PromptLogService {
         }
     }
 
-    private void cleanupOldLogs() {
+    private synchronized void cleanupOldLogs() {
         try {
             long count = repository.count();
             if (count > MAX_PROMPT_LOGS) {
