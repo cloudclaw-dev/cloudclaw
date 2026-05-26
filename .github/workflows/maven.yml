@@ -28,7 +28,8 @@ jobs:
         distribution: 'temurin'
         cache: maven
     - name: Install Dependencies
-      run: npm install
+      run: |
+        npm ci || npm install
       working-directory: ./cloudclaw-ui/chat
     - name: Build with Maven
       run: mvn -B package --file pom.xml
