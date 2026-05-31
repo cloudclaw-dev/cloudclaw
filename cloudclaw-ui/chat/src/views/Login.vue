@@ -229,6 +229,21 @@ onMounted(() => {
 :deep(.el-input__wrapper) {
   border-radius: 8px;
 }
+
+/* Dark mode input fields on login page */
+.dark :deep(.el-input__wrapper) {
+  background: #262637;
+  box-shadow: 0 0 0 1px #363647 inset;
+}
+.dark :deep(.el-input__inner) {
+  color: #e5eaf3;
+}
+.dark :deep(.el-form-item__label) {
+  color: #a3a6ad;
+}
+.dark :deep(.el-switch__label) {
+  color: #a3a6ad;
+}
 @media (max-width: 767px) {
   .login-card {
     padding: 24px 20px;

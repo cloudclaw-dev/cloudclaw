@@ -376,6 +376,10 @@ onMounted(async () => {
 :root.dark .task-content { color: #e5eaf3; }
 :root.dark .profile-list-item { background: #262737; border-color: #363637; }
 :root.dark .profile-item-content { color: #e5eaf3; }
+:root.dark .stat-label { color: #a3a6ad; }
+:root.dark .task-meta { color: #a3a6ad; }
+:root.dark .profile-list-item:hover { border-color: #555; }
+:root.dark .card-header.clickable:hover { color: #79bbff; }
 
 @media (max-width: 768px) {
   .stats-bar { padding: 12px 16px; }

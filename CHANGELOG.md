@@ -5,6 +5,28 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.4] - 2026-05-31
+
+### Added
+
+- **Frontend Component Refactoring** -- Split ChatLayout.vue (2100+ lines) into 7 focused components:
+  - SessionSidebar, MessageBubble, CodeBlock, WorkflowPanel, ChatInput, WelcomeSection, SkeletonScreen
+- **Message Actions** -- Copy button on assistant messages and code blocks, regenerate button, edit-and-resend for user messages
+- **Session Management** -- Session search, time-based grouping (Today/Yesterday/Last 7 Days/Earlier), pin/unpin, rename
+- **Code Block Enhancements** -- Language label, line numbers, one-click copy, auto-collapse for 30+ line blocks
+- **Welcome Page** -- Suggested prompt cards for new conversations
+- **Agent Form Tabs** -- Agent editor split into Basic/Model/Workflow/Tools tabs for better UX
+- **Dashboard Enhancements** -- Recent conversations list, Agent usage frequency chart (ECharts)
+- **SSE Reconnection** -- Auto-retry (up to 3 attempts) on network interruption
+- **Streaming Animation** -- Smooth fade-in animation replacing blinking cursor
+- **Dark Mode Improvements** -- Comprehensive dark mode fixes across all components and admin pages
+- **ECharts** -- Added as dependency for dashboard charts
+
+### Changed
+
+- **System version** updated to 1.0.4
+- **Start scripts** now use wildcard jar matching for forward compatibility
+
 ## [1.0.3] - 2026-05-26
 
 ### Added

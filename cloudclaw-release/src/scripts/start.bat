@@ -13,8 +13,8 @@ echo Access: http://localhost:8080
 
 if not exist logs mkdir logs
 
-start /b java %JAVA_OPTS% -Dfile.encoding=UTF-8 -Xms256m -Xmaxh512m ^
-    -jar cloudclaw-app-1.0.0.jar ^
+start /b java %JAVA_OPTS% -Dfile.encoding=UTF-8 -Xms256m -Xmx512m ^
+    -jar cloudclaw-app-*.jar ^
     --spring.profiles.active=%PROFILE% ^
     --spring.config.additional-location=file:./config/ ^
     > logs\cloudclaw.out 2>&1

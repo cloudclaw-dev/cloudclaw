@@ -40,7 +40,7 @@ cloudclaw:
   version: '@project.version@'
   mode: standalone
   crypto:
-    secret: ${CRYPTO_SECRET:}
+    secret: ${CRYPTO_SECRET:cloudclaw-default-crypto-secret-key-for-demo-only-please-change}
   cors:
     allowed-origins:
       - https://cloudclaw.run
@@ -48,7 +48,7 @@ cloudclaw:
       - "http://localhost:*"
       - "http://192.168.1.*:*"
   jwt:
-    secret: ${JWT_SECRET:}
+    secret: ${JWT_SECRET:cloudclaw-default-jwt-secret-key-for-demo-only-please-change-in-production}
     access-token-ttl: 2h
     refresh-token-ttl: 7d
   memory:

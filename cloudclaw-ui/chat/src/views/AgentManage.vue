@@ -77,290 +77,300 @@
 
     <el-dialog v-model="dialogVisible" :title="isEdit ? t('agent.editAgent') : t('agent.newAgent')" width="780" destroy-on-close>
       <el-form :model="form" :rules="rules" ref="formRef" label-width="110px">
-        <!-- ========== Agent Type Selector ========== -->
-        <div class="agent-type-selector">
-          <div
-            class="agent-type-card"
-            :class="{ 'agent-type-card--active': agentType === 'single' }"
-            @click="agentType = 'single'"
-          >
-            <div class="agent-type-card__icon">
-              <el-icon :size="28"><Monitor /></el-icon>
-            </div>
-            <div class="agent-type-card__content">
-              <div class="agent-type-card__title">{{ $t('agent.agentTypeSingle') }}</div>
-              <div class="agent-type-card__desc">{{ $t('agent.agentTypeSingleDesc') }}</div>
-            </div>
-          </div>
-          <div
-            class="agent-type-card"
-            :class="{ 'agent-type-card--active': agentType === 'multi' }"
-            @click="agentType = 'multi'"
-          >
-            <div class="agent-type-card__icon">
-              <el-icon :size="28"><Connection /></el-icon>
-            </div>
-            <div class="agent-type-card__content">
-              <div class="agent-type-card__title">{{ $t('agent.agentTypeMulti') }}</div>
-              <div class="agent-type-card__desc">{{ $t('agent.agentTypeMultiDesc') }}</div>
-            </div>
-          </div>
-        </div>
-
-        <el-form-item :label="$t('common.name')" prop="name"><el-input v-model="form.name" /></el-form-item>
-        <el-form-item :label="agentType === 'multi' ? $t('agent.agentTypeRootModel') : $t('common.model')" prop="modelId">
-          <el-select v-model="form.modelId" :placeholder="$t('agent.selectModel')" filterable style="width: 100%">
-            <el-option v-for="m in llmModels" :key="m.id" :label="m.displayName || m.modelName" :value="m.id">
-              <span>{{ m.displayName || m.modelName }}</span>
-              <span style="color: #999; font-size: 12px; margin-left: 8px">({{ m.providerName || m.providerId }})</span>
-            </el-option>
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('common.description')"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
-        <el-form-item :label="agentType === 'multi' ? $t('agent.agentTypeRootPrompt') : $t('agent.systemPrompt')" prop="systemPrompt">
-          <el-input v-model="form.systemPrompt" type="textarea" :rows="6" :placeholder="$t('agent.systemPromptPlaceholder')" />
-        </el-form-item>
-        <el-form-item :label="$t('agent.mcpServers')">
-          <el-select v-model="form.mcpServerIds" multiple :placeholder="$t('agent.bindMcp')" style="width: 100%">
-            <el-option v-for="s in mcpServers" :key="s.id" :label="s.name" :value="s.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('agent.skills')">
-          <el-select v-model="form.skillIds" multiple :placeholder="$t('agent.bindSkills')" style="width: 100%">
-            <el-option v-for="s in skills" :key="s.id" :label="s.name" :value="s.id" />
-          </el-select>
-        </el-form-item>
-
-        <!-- ========== Workflow V3 Configuration (only when Multi Agent) ========== -->
-        <template v-if="agentType === 'multi'">
-        <el-divider content-position="left">{{ $t('agent.workflowConfig') }}</el-divider>
-
-        <!-- Workflow Mode Selector -->
-        <el-form-item :label="$t('agent.workflowMode')" prop="workflowMode" :rules="[{ required: true, message: t('common.required'), trigger: 'change' }]">
-          <el-select v-model="form.workflowMode" :placeholder="$t('agent.workflowMode')" style="width: 100%">
-            <el-option value="pipeline" :label="$t('agent.workflowModePipeline')" />
-            <el-option value="parallel" :label="$t('agent.workflowModeParallel')" />
-            <el-option value="router" :label="$t('agent.workflowModeRouter')" />
-            <el-option value="supervisor" :label="$t('agent.workflowModeSupervisor')" />
-            <el-option value="handoff" :label="$t('agent.handoff')" />
-          </el-select>
-        </el-form-item>
-
-        <!-- Node List (shown when a workflow mode is selected) -->
-        <template v-if="form.workflowMode">
-          <el-form-item :label="$t('agent.nodeList')">
-            <div class="workflow-nodes-container">
-              <div v-for="(node, idx) in form.workflowNodes" :key="idx" class="workflow-node-card">
-                <div class="workflow-node-header">
-                  <span class="workflow-node-index">{{ idx + 1 }}</span>
-                  <span class="workflow-node-title">{{ node.displayName || node.name || ('Node ' + (idx + 1)) }}</span>
-                  <div class="workflow-node-actions">
-                    <el-button :icon="ArrowUp" circle size="small" :disabled="idx === 0" @click="moveNodeUp(idx)" />
-                    <el-button :icon="ArrowDown" circle size="small" :disabled="idx === form.workflowNodes.length - 1" @click="moveNodeDown(idx)" />
-                    <el-button type="danger" :icon="Delete" circle size="small" @click="removeNode(idx)" />
-                  </div>
-                </div>
-
-                <div class="workflow-node-body">
-                  <!-- Node definition fields -->
-                  <el-form-item :label="$t('agent.nodeName')" label-width="100px" style="margin-bottom: 8px">
-                    <el-input v-model="node.name" :placeholder="$t('agent.nodeNamePlaceholder')" />
-                  </el-form-item>
-                  <el-form-item :label="$t('agent.nodeDisplayName')" label-width="100px" style="margin-bottom: 8px">
-                    <el-input v-model="node.displayName" :placeholder="$t('agent.nodeDisplayNamePlaceholder')" />
-                  </el-form-item>
-                  <el-form-item :label="$t('agent.nodePrompt')" label-width="100px" style="margin-bottom: 8px">
-                    <el-input v-model="node.systemPrompt" type="textarea" :rows="3" :placeholder="$t('agent.nodePromptPlaceholder')" />
-                  </el-form-item>
-
-                  <!-- Description (always visible, used by Router/Handoff/Supervisor) -->
-                  <el-form-item :label="$t('agent.nodeDescription')" label-width="100px" style="margin-bottom: 8px">
-                    <el-input v-model="node.description" type="textarea" :rows="2" :placeholder="$t('agent.nodeDescriptionPlaceholder')" />
-                  </el-form-item>
-
-                  <!-- Model (optional override) -->
-                  <el-form-item :label="$t('agent.nodeModel')" label-width="100px" style="margin-bottom: 8px">
-                    <el-select v-model="node.modelId" :placeholder="$t('agent.nodeModelInherit')" clearable style="width: 100%">
-                      <el-option v-for="m in llmModels" :key="m.id" :label="m.displayName || m.modelName" :value="m.id" />
-                    </el-select>
-                  </el-form-item>
-
-                  <!-- MCP Servers -->
-                  <el-form-item :label="$t('agent.nodeMcp')" label-width="100px" style="margin-bottom: 8px">
-                    <el-select v-model="node.mcpServerIds" multiple :placeholder="$t('agent.bindMcp')" style="width: 100%">
-                      <el-option v-for="s in mcpServers" :key="s.id" :label="s.name" :value="s.id" />
-                    </el-select>
-                  </el-form-item>
-
-                  <!-- Skills -->
-                  <el-form-item :label="$t('agent.nodeSkills')" label-width="100px" style="margin-bottom: 8px">
-                    <el-select v-model="node.skillIds" multiple :placeholder="$t('agent.bindSkills')" style="width: 100%">
-                      <el-option v-for="s in skills" :key="s.id" :label="s.name" :value="s.id" />
-                    </el-select>
-                  </el-form-item>
-                </div>
-              </div>
-
-              <el-button type="primary" plain @click="addNode" style="width: 100%">
-                <el-icon><Plus /></el-icon> {{ $t('agent.addNode') }}
-              </el-button>
-            </div>
-          </el-form-item>
-
-          <!-- Mode-Specific Configuration -->
-          <el-form-item :label="$t('agent.modeConfig')">
-            <div class="mode-config-section">
-              <!-- Pipeline Config -->
-              <template v-if="form.workflowMode === 'pipeline'">
-                <div class="mode-config-item">
-                  <span class="mode-config-label">{{ $t('agent.pipelinePassthrough') }}:</span>
-                  <el-radio-group v-model="form.pipelineConfig.passthroughMode">
-                    <el-radio value="append">{{ $t('agent.pipelinePassthroughAppend') }}</el-radio>
-                    <el-radio value="replace">{{ $t('agent.pipelinePassthroughReplace') }}</el-radio>
-                  </el-radio-group>
-                </div>
-              </template>
-
-              <!-- Parallel Config -->
-              <template v-if="form.workflowMode === 'parallel'">
-                <div class="mode-config-item">
-                  <span class="mode-config-label">{{ $t('agent.parallelMergeStrategy') }}:</span>
-                  <el-radio-group v-model="form.parallelConfig.mergeStrategy">
-                    <el-radio value="concat">{{ $t('agent.parallelMergeConcat') }}</el-radio>
-                    <el-radio value="summarize">{{ $t('agent.parallelMergeSummarize') }}</el-radio>
-                  </el-radio-group>
-                </div>
-                <div class="mode-config-item">
-                  <span class="mode-config-label">{{ $t('agent.parallelMaxConcurrent') }}:</span>
-                  <el-input-number v-model="form.parallelConfig.maxConcurrent" :min="1" :max="20" :step="1" />
-                </div>
-              </template>
-
-              <!-- Router Config -->
-              <template v-if="form.workflowMode === 'router'">
-                <div class="mode-config-item">
-                  <el-switch v-model="form.routerConfig.allowFallback" />
-                  <span style="margin-left: 8px; font-size: 13px; color: #606266">{{ $t('agent.routerAllowFallbackDesc') }}</span>
-                </div>
-              </template>
-
-              <!-- Supervisor Config -->
-              <template v-if="form.workflowMode === 'supervisor'">
-                <div class="mode-config-item">
-                  <span class="mode-config-label">{{ $t('agent.supervisorMaxIterations') }}:</span>
-                  <el-input-number v-model="form.supervisorConfig.maxIterations" :min="1" :max="50" :step="1" />
-                </div>
-                <div class="mode-config-item" style="flex-direction: column; align-items: flex-start; gap: 4px">
-                  <span class="mode-config-label">{{ $t('agent.supervisorPlannerPrompt') }}:</span>
-                  <el-input v-model="form.supervisorConfig.plannerPrompt" type="textarea" :rows="2" :placeholder="$t('agent.supervisorPlannerPromptPlaceholder')" style="width: 100%" />
-                </div>
-                <div class="mode-config-item" style="flex-direction: column; align-items: flex-start; gap: 4px">
-                  <span class="mode-config-label">{{ $t('agent.supervisorReviewerPrompt') }}:</span>
-                  <el-input v-model="form.supervisorConfig.reviewerPrompt" type="textarea" :rows="2" :placeholder="$t('agent.supervisorReviewerPromptPlaceholder')" style="width: 100%" />
-                </div>
-              </template>
-
-              <!-- Handoff Config -->
-              <template v-if="form.workflowMode === 'handoff'">
-                <div class="mode-config-item">
-                  <el-switch v-model="form.handoffConfig.autoReturn" />
-                  <span style="margin-left: 8px; font-size: 13px; color: #606266">{{ $t('agent.handoffAutoReturnDesc') }}</span>
-                </div>
-              </template>
-            </div>
-          </el-form-item>
-        </template>
-        </template>
-
-        <!-- Legacy Sub-Agents Configuration (only when Single Agent) -->
-        <template v-if="agentType === 'single'">
-          <el-divider content-position="left">{{ $t('agent.subAgents') }}</el-divider>
-          <div v-for="(sub, idx) in form.subAgentList" :key="idx" class="sub-agent-card">
-            <div class="sub-agent-header">
-              <span class="sub-agent-title">{{ sub.displayName || sub.name || ('Sub Agent ' + (idx + 1)) }}</span>
-              <el-button type="danger" :icon="Delete" circle size="small" @click="form.subAgentList.splice(idx, 1)" />
-            </div>
-            <el-form-item :label="$t('agent.subAgentName')" label-width="80px" style="margin-bottom: 8px">
-              <el-input v-model="sub.name" :placeholder="$t('agent.subAgentName')" />
+        <el-tabs v-model="activeFormTab">
+          <!-- ========== Tab: Basic Info ========== -->
+          <el-tab-pane :label="$t('chat.tabBasic')" name="basic">
+            <el-form-item :label="$t('common.name')" prop="name"><el-input v-model="form.name" /></el-form-item>
+            <el-form-item :label="$t('common.description')"><el-input v-model="form.description" type="textarea" :rows="2" /></el-form-item>
+            <el-form-item :label="$t('common.status')">
+              <el-switch v-model="form.enabled" />
             </el-form-item>
-            <el-form-item :label="$t('agent.subAgentDisplayName')" label-width="80px" style="margin-bottom: 8px">
-              <el-input v-model="sub.displayName" :placeholder="$t('agent.subAgentDisplayName')" />
+            <el-form-item :label="agentType === 'multi' ? $t('agent.agentTypeRootPrompt') : $t('agent.systemPrompt')" prop="systemPrompt">
+              <el-input v-model="form.systemPrompt" type="textarea" :rows="6" :placeholder="$t('agent.systemPromptPlaceholder')" />
             </el-form-item>
-            <el-form-item :label="$t('agent.subAgentDescription')" label-width="80px" style="margin-bottom: 8px">
-              <el-input v-model="sub.description" type="textarea" :rows="2" :placeholder="$t('agent.subAgentDescriptionPlaceholder')" />
-            </el-form-item>
-            <el-form-item :label="$t('agent.subAgentPrompt')" label-width="80px" style="margin-bottom: 8px">
-              <el-input v-model="sub.systemPrompt" type="textarea" :rows="3" :placeholder="$t('agent.systemPromptPlaceholder')" />
-            </el-form-item>
-            <el-form-item :label="$t('agent.subAgentModel')" label-width="80px" style="margin-bottom: 8px">
-              <el-select v-model="sub.modelId" :placeholder="$t('agent.subAgentModelInherit')" clearable style="width: 100%">
-                <el-option v-for="m in llmModels" :key="m.id" :label="m.displayName || m.modelName" :value="m.id" />
+          </el-tab-pane>
+
+          <!-- ========== Tab: Model Config ========== -->
+          <el-tab-pane :label="$t('chat.tabModel')" name="model">
+            <el-form-item :label="agentType === 'multi' ? $t('agent.agentTypeRootModel') : $t('common.model')" prop="modelId">
+              <el-select v-model="form.modelId" :placeholder="$t('agent.selectModel')" filterable style="width: 100%">
+                <el-option v-for="m in llmModels" :key="m.id" :label="m.displayName || m.modelName" :value="m.id">
+                  <span>{{ m.displayName || m.modelName }}</span>
+                  <span style="color: #999; font-size: 12px; margin-left: 8px">({{ m.providerName || m.providerId }})</span>
+                </el-option>
               </el-select>
             </el-form-item>
-            <el-form-item :label="$t('agent.mcpServers')" label-width="80px" style="margin-bottom: 8px">
-              <el-select v-model="sub.mcpServerIds" multiple :placeholder="$t('agent.bindMcp')" style="width: 100%">
+          </el-tab-pane>
+
+          <!-- ========== Tab: Workflow Config ========== -->
+          <el-tab-pane :label="$t('chat.tabWorkflow')" name="workflow">
+            <!-- Agent Type Selector -->
+            <div class="agent-type-selector">
+              <div
+                class="agent-type-card"
+                :class="{ 'agent-type-card--active': agentType === 'single' }"
+                @click="agentType = 'single'"
+              >
+                <div class="agent-type-card__icon">
+                  <el-icon :size="28"><Monitor /></el-icon>
+                </div>
+                <div class="agent-type-card__content">
+                  <div class="agent-type-card__title">{{ $t('agent.agentTypeSingle') }}</div>
+                  <div class="agent-type-card__desc">{{ $t('agent.agentTypeSingleDesc') }}</div>
+                </div>
+              </div>
+              <div
+                class="agent-type-card"
+                :class="{ 'agent-type-card--active': agentType === 'multi' }"
+                @click="agentType = 'multi'"
+              >
+                <div class="agent-type-card__icon">
+                  <el-icon :size="28"><Connection /></el-icon>
+                </div>
+                <div class="agent-type-card__content">
+                  <div class="agent-type-card__title">{{ $t('agent.agentTypeMulti') }}</div>
+                  <div class="agent-type-card__desc">{{ $t('agent.agentTypeMultiDesc') }}</div>
+                </div>
+              </div>
+            </div>
+
+            <!-- Workflow V3 Configuration (only when Multi Agent) -->
+            <template v-if="agentType === 'multi'">
+            <el-divider content-position="left">{{ $t('agent.workflowConfig') }}</el-divider>
+
+            <!-- Workflow Mode Selector -->
+            <el-form-item :label="$t('agent.workflowMode')" prop="workflowMode" :rules="[{ required: true, message: t('common.required'), trigger: 'change' }]">
+              <el-select v-model="form.workflowMode" :placeholder="$t('agent.workflowMode')" style="width: 100%">
+                <el-option value="pipeline" :label="$t('agent.workflowModePipeline')" />
+                <el-option value="parallel" :label="$t('agent.workflowModeParallel')" />
+                <el-option value="router" :label="$t('agent.workflowModeRouter')" />
+                <el-option value="supervisor" :label="$t('agent.workflowModeSupervisor')" />
+                <el-option value="handoff" :label="$t('agent.handoff')" />
+              </el-select>
+            </el-form-item>
+
+            <!-- Node List (shown when a workflow mode is selected) -->
+            <template v-if="form.workflowMode">
+              <el-form-item :label="$t('agent.nodeList')">
+                <div class="workflow-nodes-container">
+                  <div v-for="(node, idx) in form.workflowNodes" :key="idx" class="workflow-node-card">
+                    <div class="workflow-node-header">
+                      <span class="workflow-node-index">{{ idx + 1 }}</span>
+                      <span class="workflow-node-title">{{ node.displayName || node.name || ('Node ' + (idx + 1)) }}</span>
+                      <div class="workflow-node-actions">
+                        <el-button :icon="ArrowUp" circle size="small" :disabled="idx === 0" @click="moveNodeUp(idx)" />
+                        <el-button :icon="ArrowDown" circle size="small" :disabled="idx === form.workflowNodes.length - 1" @click="moveNodeDown(idx)" />
+                        <el-button type="danger" :icon="Delete" circle size="small" @click="removeNode(idx)" />
+                      </div>
+                    </div>
+
+                    <div class="workflow-node-body">
+                      <!-- Node definition fields -->
+                      <el-form-item :label="$t('agent.nodeName')" label-width="100px" style="margin-bottom: 8px">
+                        <el-input v-model="node.name" :placeholder="$t('agent.nodeNamePlaceholder')" />
+                      </el-form-item>
+                      <el-form-item :label="$t('agent.nodeDisplayName')" label-width="100px" style="margin-bottom: 8px">
+                        <el-input v-model="node.displayName" :placeholder="$t('agent.nodeDisplayNamePlaceholder')" />
+                      </el-form-item>
+                      <el-form-item :label="$t('agent.nodePrompt')" label-width="100px" style="margin-bottom: 8px">
+                        <el-input v-model="node.systemPrompt" type="textarea" :rows="3" :placeholder="$t('agent.nodePromptPlaceholder')" />
+                      </el-form-item>
+
+                      <!-- Description (always visible, used by Router/Handoff/Supervisor) -->
+                      <el-form-item :label="$t('agent.nodeDescription')" label-width="100px" style="margin-bottom: 8px">
+                        <el-input v-model="node.description" type="textarea" :rows="2" :placeholder="$t('agent.nodeDescriptionPlaceholder')" />
+                      </el-form-item>
+
+                      <!-- Model (optional override) -->
+                      <el-form-item :label="$t('agent.nodeModel')" label-width="100px" style="margin-bottom: 8px">
+                        <el-select v-model="node.modelId" :placeholder="$t('agent.nodeModelInherit')" clearable style="width: 100%">
+                          <el-option v-for="m in llmModels" :key="m.id" :label="m.displayName || m.modelName" :value="m.id" />
+                        </el-select>
+                      </el-form-item>
+
+                      <!-- MCP Servers -->
+                      <el-form-item :label="$t('agent.nodeMcp')" label-width="100px" style="margin-bottom: 8px">
+                        <el-select v-model="node.mcpServerIds" multiple :placeholder="$t('agent.bindMcp')" style="width: 100%">
+                          <el-option v-for="s in mcpServers" :key="s.id" :label="s.name" :value="s.id" />
+                        </el-select>
+                      </el-form-item>
+
+                      <!-- Skills -->
+                      <el-form-item :label="$t('agent.nodeSkills')" label-width="100px" style="margin-bottom: 8px">
+                        <el-select v-model="node.skillIds" multiple :placeholder="$t('agent.bindSkills')" style="width: 100%">
+                          <el-option v-for="s in skills" :key="s.id" :label="s.name" :value="s.id" />
+                        </el-select>
+                      </el-form-item>
+                    </div>
+                  </div>
+
+                  <el-button type="primary" plain @click="addNode" style="width: 100%">
+                    <el-icon><Plus /></el-icon> {{ $t('agent.addNode') }}
+                  </el-button>
+                </div>
+              </el-form-item>
+
+              <!-- Mode-Specific Configuration -->
+              <el-form-item :label="$t('agent.modeConfig')">
+                <div class="mode-config-section">
+                  <!-- Pipeline Config -->
+                  <template v-if="form.workflowMode === 'pipeline'">
+                    <div class="mode-config-item">
+                      <span class="mode-config-label">{{ $t('agent.pipelinePassthrough') }}:</span>
+                      <el-radio-group v-model="form.pipelineConfig.passthroughMode">
+                        <el-radio value="append">{{ $t('agent.pipelinePassthroughAppend') }}</el-radio>
+                        <el-radio value="replace">{{ $t('agent.pipelinePassthroughReplace') }}</el-radio>
+                      </el-radio-group>
+                    </div>
+                  </template>
+
+                  <!-- Parallel Config -->
+                  <template v-if="form.workflowMode === 'parallel'">
+                    <div class="mode-config-item">
+                      <span class="mode-config-label">{{ $t('agent.parallelMergeStrategy') }}:</span>
+                      <el-radio-group v-model="form.parallelConfig.mergeStrategy">
+                        <el-radio value="concat">{{ $t('agent.parallelMergeConcat') }}</el-radio>
+                        <el-radio value="summarize">{{ $t('agent.parallelMergeSummarize') }}</el-radio>
+                      </el-radio-group>
+                    </div>
+                    <div class="mode-config-item">
+                      <span class="mode-config-label">{{ $t('agent.parallelMaxConcurrent') }}:</span>
+                      <el-input-number v-model="form.parallelConfig.maxConcurrent" :min="1" :max="20" :step="1" />
+                    </div>
+                  </template>
+
+                  <!-- Router Config -->
+                  <template v-if="form.workflowMode === 'router'">
+                    <div class="mode-config-item">
+                      <el-switch v-model="form.routerConfig.allowFallback" />
+                      <span style="margin-left: 8px; font-size: 13px; color: #606266">{{ $t('agent.routerAllowFallbackDesc') }}</span>
+                    </div>
+                  </template>
+
+                  <!-- Supervisor Config -->
+                  <template v-if="form.workflowMode === 'supervisor'">
+                    <div class="mode-config-item">
+                      <span class="mode-config-label">{{ $t('agent.supervisorMaxIterations') }}:</span>
+                      <el-input-number v-model="form.supervisorConfig.maxIterations" :min="1" :max="50" :step="1" />
+                    </div>
+                    <div class="mode-config-item" style="flex-direction: column; align-items: flex-start; gap: 4px">
+                      <span class="mode-config-label">{{ $t('agent.supervisorPlannerPrompt') }}:</span>
+                      <el-input v-model="form.supervisorConfig.plannerPrompt" type="textarea" :rows="2" :placeholder="$t('agent.supervisorPlannerPromptPlaceholder')" style="width: 100%" />
+                    </div>
+                    <div class="mode-config-item" style="flex-direction: column; align-items: flex-start; gap: 4px">
+                      <span class="mode-config-label">{{ $t('agent.supervisorReviewerPrompt') }}:</span>
+                      <el-input v-model="form.supervisorConfig.reviewerPrompt" type="textarea" :rows="2" :placeholder="$t('agent.supervisorReviewerPromptPlaceholder')" style="width: 100%" />
+                    </div>
+                  </template>
+
+                  <!-- Handoff Config -->
+                  <template v-if="form.workflowMode === 'handoff'">
+                    <div class="mode-config-item">
+                      <el-switch v-model="form.handoffConfig.autoReturn" />
+                      <span style="margin-left: 8px; font-size: 13px; color: #606266">{{ $t('agent.handoffAutoReturnDesc') }}</span>
+                    </div>
+                  </template>
+                </div>
+              </el-form-item>
+            </template>
+            </template>
+
+            <!-- Legacy Sub-Agents Configuration (only when Single Agent) -->
+            <template v-if="agentType === 'single'">
+              <el-divider content-position="left">{{ $t('agent.subAgents') }}</el-divider>
+              <div v-for="(sub, idx) in form.subAgentList" :key="idx" class="sub-agent-card">
+                <div class="sub-agent-header">
+                  <span class="sub-agent-title">{{ sub.displayName || sub.name || ('Sub Agent ' + (idx + 1)) }}</span>
+                  <el-button type="danger" :icon="Delete" circle size="small" @click="form.subAgentList.splice(idx, 1)" />
+                </div>
+                <el-form-item :label="$t('agent.subAgentName')" label-width="80px" style="margin-bottom: 8px">
+                  <el-input v-model="sub.name" :placeholder="$t('agent.subAgentName')" />
+                </el-form-item>
+                <el-form-item :label="$t('agent.subAgentDisplayName')" label-width="80px" style="margin-bottom: 8px">
+                  <el-input v-model="sub.displayName" :placeholder="$t('agent.subAgentDisplayName')" />
+                </el-form-item>
+                <el-form-item :label="$t('agent.subAgentDescription')" label-width="80px" style="margin-bottom: 8px">
+                  <el-input v-model="sub.description" type="textarea" :rows="2" :placeholder="$t('agent.subAgentDescriptionPlaceholder')" />
+                </el-form-item>
+                <el-form-item :label="$t('agent.subAgentPrompt')" label-width="80px" style="margin-bottom: 8px">
+                  <el-input v-model="sub.systemPrompt" type="textarea" :rows="3" :placeholder="$t('agent.systemPromptPlaceholder')" />
+                </el-form-item>
+                <el-form-item :label="$t('agent.subAgentModel')" label-width="80px" style="margin-bottom: 8px">
+                  <el-select v-model="sub.modelId" :placeholder="$t('agent.subAgentModelInherit')" clearable style="width: 100%">
+                    <el-option v-for="m in llmModels" :key="m.id" :label="m.displayName || m.modelName" :value="m.id" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item :label="$t('agent.mcpServers')" label-width="80px" style="margin-bottom: 8px">
+                  <el-select v-model="sub.mcpServerIds" multiple :placeholder="$t('agent.bindMcp')" style="width: 100%">
+                    <el-option v-for="s in mcpServers" :key="s.id" :label="s.name" :value="s.id" />
+                  </el-select>
+                </el-form-item>
+                <el-form-item :label="$t('agent.skills')" label-width="80px" style="margin-bottom: 8px">
+                  <el-select v-model="sub.skillIds" multiple :placeholder="$t('agent.bindSkills')" style="width: 100%">
+                    <el-option v-for="s in skills" :key="s.id" :label="s.name" :value="s.id" />
+                  </el-select>
+                </el-form-item>
+              </div>
+              <el-button type="primary" plain @click="addSubAgent"><el-icon><Plus /></el-icon> {{ $t('agent.addSubAgent') }}</el-button>
+            </template>
+          </el-tab-pane>
+
+          <!-- ========== Tab: Tool Bindings ========== -->
+          <el-tab-pane :label="$t('chat.tabTools')" name="tools">
+            <el-form-item :label="$t('agent.mcpServers')">
+              <el-select v-model="form.mcpServerIds" multiple :placeholder="$t('agent.bindMcp')" style="width: 100%">
                 <el-option v-for="s in mcpServers" :key="s.id" :label="s.name" :value="s.id" />
               </el-select>
             </el-form-item>
-            <el-form-item :label="$t('agent.skills')" label-width="80px" style="margin-bottom: 8px">
-              <el-select v-model="sub.skillIds" multiple :placeholder="$t('agent.bindSkills')" style="width: 100%">
+            <el-form-item :label="$t('agent.skills')">
+              <el-select v-model="form.skillIds" multiple :placeholder="$t('agent.bindSkills')" style="width: 100%">
                 <el-option v-for="s in skills" :key="s.id" :label="s.name" :value="s.id" />
               </el-select>
             </el-form-item>
-          </div>
-          <el-button type="primary" plain @click="addSubAgent"><el-icon><Plus /></el-icon> {{ $t('agent.addSubAgent') }}</el-button>
-        </template>
+          </el-tab-pane>
 
-        <!-- Advanced Settings (collapsed) -->
-        <el-divider>
-          <el-button text @click="showAdvanced = !showAdvanced" style="font-size: 13px; color: #909399">
-            {{ showAdvanced ? t('common.collapseAdvanced') : t('common.expandAdvanced') }}
-            <el-icon style="margin-left: 4px"><component :is="showAdvanced ? 'ArrowUp' : 'ArrowDown'" /></el-icon>
-          </el-button>
-        </el-divider>
-        <template v-if="showAdvanced">
-          <el-form-item :label="$t('agent.maxToolCalls')">
-            <el-input-number v-model="form.maxToolCalls" :min="1" :max="200" :step="1" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.maxToolCallsDesc') }}</span>
-          </el-form-item>
-          <el-form-item :label="$t('agent.compressionThreshold')">
-            <el-input-number v-model="form.compressionThreshold" :min="5" :max="100" :step="1" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.compressionThresholdDesc') }}</span>
-          </el-form-item>
-          <el-form-item :label="$t('agent.keepRounds')">
-            <el-input-number v-model="form.compressionKeepRounds" :min="2" :max="50" :step="1" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.keepRoundsDesc') }}</span>
-          </el-form-item>
-          <el-form-item :label="$t('agent.contextThreshold')">
-            <el-input-number v-model="form.contextUsageThreshold" :min="0.1" :max="0.99" :step="0.05" :precision="2" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.contextThresholdDesc') }}</span>
-          </el-form-item>
-          <el-divider content-position="left">{{ $t('agent.sandboxConfig') }}</el-divider>
-          <el-form-item :label="$t('agent.enableSandbox')">
-            <el-switch v-model="form.sandboxEnabled" />
-            <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.enableSandboxDesc') }}</span>
-          </el-form-item>
-          <el-form-item :label="$t('sandbox.providers')" v-if="form.sandboxEnabled">
-            <el-select v-model="form.sandboxProviderId" style="width: 100%" :placeholder="$t('agent.selectSandboxProvider')" clearable>
-              <el-option v-for="p in sandboxProviders" :key="p.id" :label="p.name + ' (' + p.type + ')'" :value="p.id" />
-            </el-select>
-          </el-form-item>
-          <el-form-item :label="$t('agent.sandboxMode')" v-if="form.sandboxEnabled">
-            <el-radio-group v-model="form.sandboxMode">
-              <el-radio value="STATELESS">{{ $t('agent.statelessMode') }}</el-radio>
-              <el-radio value="SESSION" :disabled="!isSessionModeAllowed">{{ $t('agent.sessionMode') }}{{ !isSessionModeAllowed ? t('agent.sessionModeNote') : '' }}</el-radio>
-            </el-radio-group>
-            <div v-if="!isSessionModeAllowed && form.sandboxMode === 'SESSION'" style="color: #e6a23c; font-size: 12px; margin-top: 4px;">
-              {{ $t('agent.sessionModeWarning') }}
-            </div>
-          </el-form-item>
-          <el-form-item :label="$t('agent.execTimeout')" v-if="form.sandboxEnabled">
-            <el-input-number v-model="form.sandboxTimeout" :min="5" :max="300" :step="5" />
-          </el-form-item>
-        </template>
-        <el-form-item :label="$t('common.status')">
-          <el-switch v-model="form.enabled" />
-        </el-form-item>
+          <!-- ========== Tab: Advanced Settings ========== -->
+          <el-tab-pane :label="$t('chat.tabAdvanced')" name="advanced">
+            <el-form-item :label="$t('agent.maxToolCalls')">
+              <el-input-number v-model="form.maxToolCalls" :min="1" :max="200" :step="1" />
+              <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.maxToolCallsDesc') }}</span>
+            </el-form-item>
+            <el-form-item :label="$t('agent.compressionThreshold')">
+              <el-input-number v-model="form.compressionThreshold" :min="5" :max="100" :step="1" />
+              <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.compressionThresholdDesc') }}</span>
+            </el-form-item>
+            <el-form-item :label="$t('agent.keepRounds')">
+              <el-input-number v-model="form.compressionKeepRounds" :min="2" :max="50" :step="1" />
+              <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.keepRoundsDesc') }}</span>
+            </el-form-item>
+            <el-form-item :label="$t('agent.contextThreshold')">
+              <el-input-number v-model="form.contextUsageThreshold" :min="0.1" :max="0.99" :step="0.05" :precision="2" />
+              <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.contextThresholdDesc') }}</span>
+            </el-form-item>
+            <el-divider content-position="left">{{ $t('agent.sandboxConfig') }}</el-divider>
+            <el-form-item :label="$t('agent.enableSandbox')">
+              <el-switch v-model="form.sandboxEnabled" />
+              <span style="margin-left: 8px; font-size: 12px; color: #909399">{{ $t('agent.enableSandboxDesc') }}</span>
+            </el-form-item>
+            <el-form-item :label="$t('sandbox.providers')" v-if="form.sandboxEnabled">
+              <el-select v-model="form.sandboxProviderId" style="width: 100%" :placeholder="$t('agent.selectSandboxProvider')" clearable>
+                <el-option v-for="p in sandboxProviders" :key="p.id" :label="p.name + ' (' + p.type + ')'" :value="p.id" />
+              </el-select>
+            </el-form-item>
+            <el-form-item :label="$t('agent.sandboxMode')" v-if="form.sandboxEnabled">
+              <el-radio-group v-model="form.sandboxMode">
+                <el-radio value="STATELESS">{{ $t('agent.statelessMode') }}</el-radio>
+                <el-radio value="SESSION" :disabled="!isSessionModeAllowed">{{ $t('agent.sessionMode') }}{{ !isSessionModeAllowed ? t('agent.sessionModeNote') : '' }}</el-radio>
+              </el-radio-group>
+              <div v-if="!isSessionModeAllowed && form.sandboxMode === 'SESSION'" style="color: #e6a23c; font-size: 12px; margin-top: 4px;">
+                {{ $t('agent.sessionModeWarning') }}
+              </div>
+            </el-form-item>
+            <el-form-item :label="$t('agent.execTimeout')" v-if="form.sandboxEnabled">
+              <el-input-number v-model="form.sandboxTimeout" :min="5" :max="300" :step="5" />
+            </el-form-item>
+          </el-tab-pane>
+        </el-tabs>
       </el-form>
       <template #footer>
         <el-button @click="dialogVisible = false">{{ $t('common.cancel') }}</el-button>
@@ -395,6 +405,7 @@ const { isMobile } = useMobile()
 const search = ref('')
 const formRef = ref<FormInstance>()
 const agentType = ref<'single' | 'multi'>('single')
+const activeFormTab = ref('basic')
 
 // ===== Workflow V3 Types =====
 interface WorkflowNode {
@@ -759,6 +770,7 @@ const openDialog = async (row?: any) => {
       handoffConfig: { ...defaultHandoffConfig },
     })
   }
+  activeFormTab.value = 'basic'
   dialogVisible.value = true
   // Reset skip flag after Vue's reactive updates have settled
   setTimeout(() => { skipWorkflowWatch = false }, 0)
@@ -981,5 +993,46 @@ onMounted(loadData)
 .agent-type-card__desc {
   font-size: 12px;
   color: var(--el-text-color-secondary, #909399);
+}
+
+/* ===== Dark Mode ===== */
+:global(.dark) .mode-config-label {
+  color: #a3a6ad;
+}
+:global(.dark) .agent-type-card {
+  background: #1d1e1f;
+  border-color: #363637;
+}
+:global(.dark) .agent-type-card:hover {
+  background: #1a2a44;
+  border-color: #3370ff;
+}
+:global(.dark) .agent-type-card--active {
+  background: #1a2a44;
+  border-color: #3370ff;
+  box-shadow: 0 0 0 1px #3370ff;
+}
+:global(.dark) .agent-type-card__title {
+  color: #e5eaf3;
+}
+:global(.dark) .agent-type-card__icon {
+  background: #262627;
+  color: #a3a6ad;
+}
+:global(.dark) .agent-type-card--active .agent-type-card__icon {
+  background: rgba(51,112,255,0.2);
+  color: #79bbff;
+}
+:global(.dark) .workflow-node-card {
+  background: #1d1e1f;
+  border-color: #363637;
+}
+:global(.dark) .workflow-node-header {
+  background: #262627;
+  border-bottom-color: #363637;
+}
+:global(.dark) .sub-agent-card {
+  background: #1d1e1f;
+  border-color: #363637;
 }
 </style>
