@@ -22,7 +22,7 @@ cd cloudclaw
 mvn clean package -DskipTests
 
 # Run standalone mode
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.0.jar
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar
 
 # Access
 # Chat UI: http://localhost:8080/

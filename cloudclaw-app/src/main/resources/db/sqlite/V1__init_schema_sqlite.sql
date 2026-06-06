@@ -46,6 +46,10 @@ CREATE TABLE agents (
     workflow_mode             VARCHAR(20),
     workflow                  TEXT,
     created_by                TEXT REFERENCES users(id) ON DELETE CASCADE,
+    emoji                     VARCHAR(10),
+    featured                  BOOLEAN DEFAULT FALSE,
+    greeting_message          TEXT,
+    suggested_prompts         TEXT,
     enabled                   BOOLEAN DEFAULT TRUE,
     created_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at                TIMESTAMP DEFAULT CURRENT_TIMESTAMP
@@ -369,3 +373,26 @@ INSERT INTO agents (id, name, description, system_prompt, model_id, temperature,
  'parallel',
  '{"mode":"parallel","nodes":[{"id":"node_1","name":"optimist","display_name":"乐观派","description":"","system_prompt":"你总是从积极乐观的角度分析问题，看到好的一面。","model_id":"glm-5.1"},{"id":"node_2","name":"pessimist","display_name":"悲观派","description":"","system_prompt":"你总是从风险和问题的角度分析事情，指出潜在隐患。","model_id":"glm-5.1"},{"id":"node_3","name":"realist","display_name":"现实派","description":"","system_prompt":"你从客观中立的角度分析问题，给出务实的建议。","model_id":"glm-5.1"}],"parallel_config":{"merge_strategy":"summarize","max_concurrent":5}}',
  '00000000-0000-0000-0000-000000000001', 1);
+
+-- Debug: chat trace table
+CREATE TABLE IF NOT EXISTS chat_trace (
+    trace_id TEXT PRIMARY KEY,
+    session_id TEXT NOT NULL,
+    agent_id TEXT NOT NULL,
+    user_id TEXT NOT NULL,
+    model_id TEXT,
+    start_time TEXT NOT NULL,
+    end_time TEXT,
+    duration_ms INTEGER,
+    input_tokens INTEGER DEFAULT 0,
+    output_tokens INTEGER DEFAULT 0,
+    total_tokens INTEGER DEFAULT 0,
+    tool_call_count INTEGER DEFAULT 0,
+    status TEXT DEFAULT 'RUNNING',
+    error_message TEXT,
+    spans_json TEXT,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP
+);
+CREATE INDEX IF NOT EXISTS idx_trace_session ON chat_trace(session_id);
+CREATE INDEX IF NOT EXISTS idx_trace_agent ON chat_trace(agent_id);
+CREATE INDEX IF NOT EXISTS idx_trace_start ON chat_trace(start_time);

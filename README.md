@@ -68,7 +68,7 @@ export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
 # Run
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.3.jar
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar
 ```
 
 Open http://localhost:8080/ and login with `admin / admin123`.
@@ -89,7 +89,7 @@ mvn clean package -DskipTests
 export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.3.jar \
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar \
   --spring.profiles.active=cluster
 ```
 
@@ -128,7 +128,7 @@ cloudclaw
 ├── cloudclaw-app          # Spring Boot entry point & configuration
 ├── cloudclaw-common       # Shared models, DTOs, utilities
 ├── cloudclaw-auth         # JWT authentication & authorization
-├── cloudclaw-agent        # Agent engine, prompt assembly, chat orchestration
+├── cloudclaw-agent        # Agent engine, prompt assembly, chat orchestration, workflow
 ├── cloudclaw-llm          # LLM multi-provider routing, credential encryption, usage stats
 ├── cloudclaw-mcp          # MCP gateway, connection pool, tool routing
 ├── cloudclaw-memory       # Memory service (JDBC / Mem0 engines)
@@ -139,7 +139,9 @@ cloudclaw
 ├── cloudclaw-user         # User-facing API controllers
 ├── cloudclaw-sandbox      # Code sandbox (Local/Docker/E2B)
 ├── cloudclaw-standalone   # Standalone mode (SQLite, in-memory MQ, Caffeine cache)
-└── cloudclaw-ui           # Vue.js frontend (Chat + Admin)
+├── cloudclaw-debug        # Debug utilities (optional, zero-overhead when disabled)
+├── cloudclaw-release      # Distribution packaging (scripts, assembly)
+└── cloudclaw-ui           # Vue.js frontend (Chat + Admin, unified SPA)
 ```
 
 ## 📦 Tech Stack

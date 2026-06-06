@@ -68,7 +68,7 @@ export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
 # 启动
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.3.jar
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar
 ```
 
 打开 http://localhost:8080/，使用 `admin / admin123` 登录。
@@ -89,7 +89,7 @@ mvn clean package -DskipTests
 export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.3.jar \
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar \
   --spring.profiles.active=cluster
 ```
 
@@ -128,7 +128,7 @@ cloudclaw
 ├── cloudclaw-app          # Spring Boot 启动模块 & 配置
 ├── cloudclaw-common       # 公共模型、DTO、工具类
 ├── cloudclaw-auth         # JWT 认证 & 授权
-├── cloudclaw-agent        # Agent 引擎、提示词组装、对话编排
+├── cloudclaw-agent        # Agent 引擎、提示词组装、对话编排、工作流
 ├── cloudclaw-llm          # LLM 多提供商路由、凭据加密、用量统计
 ├── cloudclaw-mcp          # MCP 网关、连接池、工具路由
 ├── cloudclaw-memory       # 记忆服务（JDBC / Mem0 引擎）
@@ -139,7 +139,9 @@ cloudclaw
 ├── cloudclaw-user         # 用户端 API 控制器
 ├── cloudclaw-sandbox      # 代码沙箱（Local/Docker/E2B）
 ├── cloudclaw-standalone   # Standalone 模式（SQLite、内存 MQ、Caffeine 缓存）
-└── cloudclaw-ui           # Vue.js 前端（Chat + Admin）
+├── cloudclaw-debug        # 调试工具（可选，禁用时零开销）
+├── cloudclaw-release      # 分发包打包（脚本、Assembly）
+└── cloudclaw-ui           # Vue.js 前端（Chat + Admin 统一 SPA）
 ```
 
 ## 📦 技术栈

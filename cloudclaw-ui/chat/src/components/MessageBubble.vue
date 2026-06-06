@@ -37,24 +37,32 @@
         </div>
         <template v-if="msg.segments && msg.segments.length > 0">
           <template v-for="(seg, si) in msg.segments" :key="si">
-            <div v-if="seg.type === 'tool_call'" class="tool-call-card">
-              <div class="tool-call-header">
-                <el-icon class="tool-icon"><SetUp /></el-icon>
-                <span class="tool-name">{{ seg.toolName }}</span>
+            <div v-if="seg.type === 'tool_call'" class="tool-card tool-done">
+              <div class="tool-card-header">
+                <span class="tool-card-icon">{{ getToolDisplay(seg.toolName || '').icon }}</span>
+                <span class="tool-card-label">{{ getToolDisplay(seg.toolName || '').label }}</span>
+                <span class="tool-status done">✅</span>
               </div>
-              <pre v-if="seg.content" class="tool-args">{{ formatToolArgs(seg.content) }}</pre>
+              <div v-if="seg.content" class="tool-card-desc">{{ formatToolCallHuman(seg.toolName || '', seg.content) }}</div>
             </div>
-            <div v-else-if="seg.type === 'tool_result'" class="tool-result-card">
-              <div class="tool-result-header">
-                <el-icon class="tool-icon"><Finished /></el-icon>
-                <span>{{ seg.toolName }} result</span>
+            <div v-else-if="seg.type === 'tool_result'" class="tool-card tool-done">
+              <div class="tool-card-header">
+                <span class="tool-card-icon">{{ getToolDisplay(seg.toolName || '').icon }}</span>
+                <span class="tool-card-label">{{ getToolDisplay(seg.toolName || '').label }}</span>
+                <span class="tool-status done">✅</span>
               </div>
-              <pre class="tool-result-content">{{ seg.content }}</pre>
+              <div class="tool-card-result-toggle" @click="toggleBubbleToolResult(si)">
+                {{ formatToolResultSummary(seg.toolName || '', seg.content) }}
+                <span class="tool-toggle-icon">{{ expandedBubbleTools[si] ? '▲' : '▼' }}</span>
+              </div>
+              <div v-if="expandedBubbleTools[si]" class="tool-card-result-detail">
+                <pre>{{ formatToolArgs(seg.content) }}</pre>
+              </div>
             </div>
             <div v-else class="message-text markdown-body" v-html="renderMarkdown(seg.content)" />
           </template>
         </template>
-        <div v-else class="message-text markdown-body" v-html="renderMarkdown(msg.content)" />
+        <div v-else class="message-text markdown-body" ref="markdownContent" v-html="renderMarkdown(msg.content)" />
         <div class="message-footer">
           <div class="message-actions assistant-actions">
             <button class="msg-action-btn" @click="handleCopy" :title="copied ? t('chat.copied') : t('chat.copy')">
@@ -79,10 +87,11 @@
 </template>
 
 <script setup lang="ts">
-import { ref, nextTick, inject } from 'vue'
+import { ref, nextTick, onMounted, watch, inject } from 'vue'
 import { Monitor, UserFilled, SetUp, Finished } from '@element-plus/icons-vue'
 import MarkdownIt from 'markdown-it'
 import { useI18n } from 'vue-i18n'
+import { getToolDisplay, formatToolCallHuman, formatToolResultSummary } from '@/utils/toolDisplay'
 
 interface MessageSegment {
   type: 'text' | 'tool_call' | 'tool_result' | 'workflow_status'
@@ -98,8 +107,10 @@ interface Message {
   agentName?: string
 }
 
+interface MemoryRef { type: string; itemId: string; content: string }
+
 const props = defineProps<{
-  msg: Message
+  msg: Message & { memoryRefs?: MemoryRef[] }
   index: number
   md: MarkdownIt
 }>()
@@ -112,9 +123,38 @@ const emit = defineEmits<{
 const { t } = useI18n()
 const isDark = inject('isDark', ref(false))
 const copied = ref(false)
+const showMemoryRefs = ref(false)
 const isEditing = ref(false)
 const editContent = ref('')
 const editTextarea = ref<HTMLTextAreaElement | null>(null)
+const markdownContent = ref<HTMLElement | null>(null)
+
+const addCopyButtons = () => {
+  nextTick(() => {
+    if (!markdownContent.value) return
+    const preBlocks = markdownContent.value.querySelectorAll('pre:not(.has-copy-btn)')
+    preBlocks.forEach((pre) => {
+      pre.classList.add('has-copy-btn')
+      pre.style.position = 'relative'
+      const btn = document.createElement('button')
+      btn.className = 'code-copy-btn'
+      btn.textContent = 'Copy'
+      btn.onclick = async () => {
+        const code = pre.querySelector('code')
+        const text = code ? code.textContent || '' : pre.textContent || ''
+        try {
+          await navigator.clipboard.writeText(text)
+          btn.textContent = 'Copied!'
+          setTimeout(() => { btn.textContent = 'Copy' }, 2000)
+        } catch { btn.textContent = 'Failed' }
+      }
+      pre.appendChild(btn)
+    })
+  })
+}
+
+watch(() => props.msg.content, addCopyButtons)
+onMounted(addCopyButtons)
 
 const renderMarkdown = (content: string): string => {
   if (!content) return ''
@@ -359,6 +399,23 @@ const handleEditKeydown = (e: KeyboardEvent) => {
   text-align: left;
 }
 .markdown-body :deep(th) { background: var(--cc-bg-tertiary, #eef0f4); font-weight: 600; }
+.code-copy-btn {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  background: rgba(255,255,255,0.9);
+  border: 1px solid var(--cc-border, #e8eaed);
+  border-radius: 4px;
+  padding: 2px 10px;
+  font-size: 11px;
+  cursor: pointer;
+  color: var(--cc-text-secondary, #646a73);
+  opacity: 0;
+  transition: opacity 0.15s;
+}
+.dark .code-copy-btn { background: rgba(40,40,40,0.9); color: #ccc; border-color: #555; }
+pre:hover > .code-copy-btn { opacity: 1; }
+.code-copy-btn:hover { background: var(--cc-bg-primary, #fff); }
 .tool-call-card {
   background: #fff8e6;
   border: 1px solid #ffe7a0;
@@ -413,4 +470,34 @@ const handleEditKeydown = (e: KeyboardEvent) => {
   overflow-y: auto;
   color: var(--cc-text-secondary, #646a73);
 }
+
+/* Memory References */
+.memory-refs-section { margin-top: 8px; }
+.memory-refs-header {
+  display: inline-flex; align-items: center; gap: 6px;
+  font-size: 12px; color: var(--cc-text-muted, #8f959e);
+  cursor: pointer; padding: 4px 8px; border-radius: 6px;
+  background: rgba(0,0,0,0.03); transition: background 0.15s;
+}
+.memory-refs-header:hover { background: rgba(0,0,0,0.06); }
+.message-row.dark .memory-refs-header { background: rgba(255,255,255,0.06); }
+.message-row.dark .memory-refs-header:hover { background: rgba(255,255,255,0.1); }
+.memory-refs-icon { font-size: 14px; }
+.memory-refs-text { }
+.memory-refs-toggle { font-size: 10px; margin-left: 2px; }
+.memory-refs-list {
+  margin-top: 6px; padding: 8px 12px;
+  background: rgba(51,112,255,0.04); border-radius: 8px;
+  border: 1px solid rgba(51,112,255,0.1);
+}
+.message-row.dark .memory-refs-list { background: rgba(51,112,255,0.08); border-color: rgba(51,112,255,0.15); }
+.memory-ref-item {
+  display: flex; align-items: flex-start; gap: 8px;
+  font-size: 12px; color: var(--cc-text-secondary, #646a73);
+  padding: 4px 0;
+}
+.memory-ref-type { font-size: 14px; flex-shrink: 0; }
+.memory-ref-content { line-height: 1.4; }
+.slide-enter-active, .slide-leave-active { transition: all 0.2s; overflow: hidden; }
+.slide-enter-from, .slide-leave-to { opacity: 0; max-height: 0; }
 </style>

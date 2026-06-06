@@ -72,6 +72,9 @@ export default {
     noToken: '登录失败：未获取到令牌',
   },
   nav: {
+    agentGallery: '智能体',
+    backToChat: '返回对话',
+    systemAdmin: '系统管理',
     chat: '对话',
     memory: '记忆',
     agent: 'Agent 管理',
@@ -107,8 +110,10 @@ export default {
     agentName: 'Agent',
   },
   chat: {
+    startChat: '开始对话',
+    recent7Days: '最近 7 天',
     newSession: '新会话',
-    newChat: '开始新会话',
+    newChat: '新会话',
     noSession: '选择或创建一个会话开始对话',
     inputPlaceholder: '输入消息... (Enter 发送, Shift+Enter 换行)',
     send: '发送',
@@ -146,6 +151,7 @@ export default {
     title: '标题',
     createdAt: '创建时间',
     lastActive: '最后活跃',
+    createSessionFailed: '创建会话失败',
     sessionCreated: '会话创建成功',
     // 1.0.4 new entries
     editMessage: '编辑消息',
@@ -459,6 +465,8 @@ export default {
     daysAgo: '{n} 天前',
     clearSessionMemory: '清空会话记忆',
     clearSessionMemoryConfirm: '确定清空该会话的所有记忆吗？',
+    memoryReferenced: '参考了 {0} 条记忆',
+    searchPlaceholder: '搜索记忆...',
     noSessionMemory: '该会话暂无记忆',
     content: '内容',
     tokens: '令牌数',

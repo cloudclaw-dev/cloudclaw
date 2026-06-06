@@ -39,6 +39,12 @@ public class AgentConfig {
     private String sandboxMode;
     private Integer sandboxTimeout;
 
+    // Welcome page display
+    private String emoji;
+    private Boolean featured;
+    private String greetingMessage;
+    private String suggestedPrompts;
+
     // Sub-agents (Agent Transfer v2)
     private List<SubAgentDef> subAgents;
 

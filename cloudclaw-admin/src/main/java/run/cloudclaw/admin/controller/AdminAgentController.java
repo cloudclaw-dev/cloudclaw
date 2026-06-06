@@ -188,6 +188,12 @@ public class AdminAgentController {
             agent.setWorkflow(request.getWorkflow().isBlank() ? null : request.getWorkflow());
         }
 
+        // Welcome page fields
+        if (request.getEmoji() != null) agent.setEmoji(request.getEmoji());
+        if (request.getFeatured() != null) agent.setFeatured(request.getFeatured());
+        if (request.getGreetingMessage() != null) agent.setGreetingMessage(request.getGreetingMessage());
+        if (request.getSuggestedPrompts() != null) agent.setSuggestedPrompts(request.getSuggestedPrompts());
+
         Agent saved = agentRepository.save(agent);
 
         // Update MCP server bindings if provided

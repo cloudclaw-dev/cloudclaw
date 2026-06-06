@@ -61,4 +61,10 @@ public class UpdateAgentRequest {
 
     /** Workflow definition JSON */
     private String workflow;
+
+    // Welcome page fields
+    private String emoji;
+    private Boolean featured;
+    private String greetingMessage;
+    private String suggestedPrompts;
 }

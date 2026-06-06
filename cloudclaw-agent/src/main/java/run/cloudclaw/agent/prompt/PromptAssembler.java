@@ -4,7 +4,9 @@ import run.cloudclaw.common.dto.AgentConfig;
 import run.cloudclaw.agent.engine.AgentTransferService.ResolvedAgent;
 import run.cloudclaw.common.model.Skill;
 import run.cloudclaw.skill.service.SkillService;
+import run.cloudclaw.memory.injector.MemoryContext;
 import run.cloudclaw.memory.injector.MemoryInjector;
+import run.cloudclaw.memory.injector.MemoryRefHolder;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.stereotype.Component;
@@ -104,7 +106,7 @@ public class PromptAssembler {
 
         // 3. Memory context
         try {
-            String memoryContext = memoryInjector.buildMemoryContext(userId, sessionId, config.getAgentId(), userMessage);
+            String memoryContext = MemoryRefHolder.captureAndReturnContent(memoryInjector.buildMemoryContextWithRefs(userId, sessionId, 3000));
             if (memoryContext != null && !memoryContext.isBlank()) {
                 sb.append(memoryContext);
             }
@@ -162,7 +164,7 @@ public class PromptAssembler {
 
         // 4. Memory context (shared from root)
         try {
-            String memoryContext = memoryInjector.buildMemoryContext(userId, sessionId, rootConfig.getAgentId(), userMessage);
+            String memoryContext = MemoryRefHolder.captureAndReturnContent(memoryInjector.buildMemoryContextWithRefs(userId, sessionId, 3000));
             if (memoryContext != null && !memoryContext.isBlank()) {
                 sb.append(memoryContext);
             }

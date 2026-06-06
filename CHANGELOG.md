@@ -5,6 +5,42 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.5] - 2026-06-06
+
+### Added
+
+- **Package Rename** — Migrated entire codebase from `com.cloudclaw` to `run.cloudclaw`, establishing a proper root namespace for the project
+- **Navigation Refactoring** — Replaced the three-column layout (nav + session sidebar + chat) with a clean two-column design:
+  - Session list merged into the left navigation bar, collapsible (64px/260px)
+  - "New Chat" dialog with agent card selection
+  - Bottom section: Memory, System Admin (admin only), Language toggle, Dark mode, Logout, Collapse
+  - Mobile-responsive tab bar with slide-in session panel
+- **Contributing Guide** — Added `CONTRIBUTING.md` with development setup, coding standards, and PR workflow
+- **Release Module** — New `cloudclaw-release` Maven module for distribution packaging:
+  - Assembly descriptor for standalone distribution archive
+  - Start/stop scripts for Linux (`start.sh`, `stop.sh`) and Windows (`start.bat`)
+  - Self-contained release README with deployment instructions
+- **New Chat Dialog** — Replaced direct session creation with an agent selection dialog (`NewChatDialog.vue`)
+- **Tool Display** — New `toolDisplay.ts` utility for human-readable tool call rendering in streaming messages
+- **Skeleton Screens** — `SkeletonScreen.vue` component for loading placeholders (sessions, messages)
+- **Workflow Panel** — `WorkflowPanel.vue` for real-time multi-agent orchestration status visualization
+- **Thinking Support** — `ThinkingDisabledConnector` to handle models that don't support thinking/reasoning tokens
+
+### Changed
+
+- **System version** updated to 1.0.5
+- **Admin UI merged into Chat UI** — Removed separate `cloudclaw-ui/admin` project; all admin pages now live under `cloudclaw-ui/chat` with `AdminLayout.vue` and route-based navigation
+- **Frontend refactored into focused components** — `SessionList`, `NewChatDialog`, `MessageBubble`, `WorkflowPanel`, `ChatInput`, `WelcomeSection`, `SkeletonScreen`, `CodeBlock` extracted from monolithic `ChatLayout.vue`
+- **"New Chat" button** — Icon changed from generic `Plus` to `EditPen`; text shortened from "开始新会话" to "新会话"
+- **Welcome page** — Flexbox centering for proper horizontal and vertical alignment in the content area
+- **Session sidebar removed** — `SessionSidebar.vue` replaced by inline `SessionList.vue` in the navigation bar
+- **Release files removed from repo root** — `release-1.0.0/` directory moved to `cloudclaw-release/` module
+
+### Fixed
+
+- **Duplicate `EditPen` import** — Vue compiler error caused by adding icon name twice in the import block
+- **Missing `Plus` import** — Restored after icon change to prevent mobile session button breakage
+
 ## [1.0.4] - 2026-05-31
 
 ### Added

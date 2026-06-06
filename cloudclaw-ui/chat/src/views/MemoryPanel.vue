@@ -30,6 +30,17 @@
         </div>
       </div>
 
+      <!-- Search -->
+      <div class="memory-search-bar">
+        <el-input
+          v-model="searchQuery"
+          :placeholder="$t('memory.searchPlaceholder')"
+          size="small"
+          clearable
+          prefix-icon="Search"
+        />
+      </div>
+
       <!-- User Profile (collapsible) -->
       <el-card shadow="hover">
         <template #header>
@@ -43,7 +54,7 @@
         <div v-show="showProfile">
           <!-- Profile items as editable list -->
           <div class="profile-list">
-            <div v-for="item in profileItems" :key="item.id" class="profile-list-item">
+            <div v-for="item in filteredProfileItems" :key="item.id" class="profile-list-item">
               <div v-if="editingProfileId !== item.id" class="profile-item-content">
                 {{ item.content }}
               </div>
@@ -113,7 +124,7 @@
         </template>
 
         <div v-if="tasks.length > 0" class="task-list">
-          <div v-for="task in tasks" :key="task.id" class="task-item">
+          <div v-for="task in filteredTasks" :key="task.id" class="task-item">
             <div class="task-top">
               <div class="task-content">{{ task.content }}</div>
               <el-button type="danger" text size="small" @click="deleteTask(task.id)">
@@ -177,6 +188,20 @@ const tasks = ref<SessionContextItem[]>([])
 const loadingTasks = ref(false)
 const filterSessionId = ref('')
 const sessions = ref<Session[]>([])
+const searchQuery = ref('')
+
+// ===== Search Filtering =====
+const filteredProfileItems = computed(() => {
+  if (!searchQuery.value) return profileItems.value
+  const q = searchQuery.value.toLowerCase()
+  return profileItems.value.filter(item => item.content.toLowerCase().includes(q))
+})
+
+const filteredTasks = computed(() => {
+  if (!searchQuery.value) return tasks.value
+  const q = searchQuery.value.toLowerCase()
+  return tasks.value.filter(task => task.content.toLowerCase().includes(q))
+})
 
 // ===== Data Loading =====
 const loadProfileItems = async () => {
@@ -383,5 +408,9 @@ onMounted(async () => {
 
 @media (max-width: 768px) {
   .stats-bar { padding: 12px 16px; }
+}
+.memory-search-bar {
+  margin-bottom: 16px;
+  max-width: 400px;
 }
 </style>

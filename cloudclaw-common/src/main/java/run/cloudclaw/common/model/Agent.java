@@ -118,6 +118,22 @@ public class Agent {
     @org.hibernate.annotations.JdbcTypeCode(org.hibernate.type.SqlTypes.VARCHAR)
     private UUID createdBy;
 
+    /** Display emoji for welcome page */
+    @Column(name = "emoji", length = 10)
+    private String emoji;
+
+    /** Whether to show this agent on the welcome page */
+    @Column(name = "featured")
+    private Boolean featured = false;
+
+    /** Greeting message shown when creating a new session with this agent */
+    @Column(name = "greeting_message", columnDefinition = "text")
+    private String greetingMessage;
+
+    /** Suggested prompts JSON array for quick start */
+    @Column(name = "suggested_prompts", columnDefinition = "text")
+    private String suggestedPrompts;
+
     @Column(nullable = false)
     private Boolean enabled = true;
 

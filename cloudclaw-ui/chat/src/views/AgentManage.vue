@@ -20,7 +20,45 @@
         <el-input v-model="search" :placeholder="$t('agent.searchAgent')" style="width: 300px" clearable>
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <div class="view-toggle">
+          <el-button-group>
+            <el-button :type="viewMode === 'card' ? 'primary' : 'default'" @click="viewMode = 'card'"><el-icon><Grid /></el-icon></el-button>
+            <el-button :type="viewMode === 'list' ? 'primary' : 'default'" @click="viewMode = 'list'"><el-icon><List /></el-icon></el-button>
+          </el-button-group>
+        </div>
       </div>
+
+    <!-- Card View -->
+    <div v-if="viewMode === 'card' && !isMobile" class="agent-card-grid">
+      <div v-for="item in filteredData" :key="item.id" class="agent-card-item" @click="openDialog(item)">
+        <div class="agent-card-top">
+          <div class="agent-card-icon">
+            <el-icon :size="24"><SetUp /></el-icon>
+          </div>
+          <div class="agent-card-main">
+            <div class="agent-card-name">{{ item.name }}</div>
+            <div class="agent-card-desc" v-if="item.description">{{ item.description }}</div>
+          </div>
+        </div>
+        <div class="agent-card-meta">
+          <el-tag v-if="item.workflowMode" :type="workflowModeTagType(item.workflowMode)" size="small">{{ item.workflowMode }}</el-tag>
+          <el-tag v-else-if="parsedSubAgents(item).length > 0" type="warning" size="small">Multi-Agent</el-tag>
+          <span v-else class="agent-card-single">Single</span>
+          <span class="agent-card-model">{{ item.modelId || '-' }}</span>
+        </div>
+        <div class="agent-card-footer">
+          <el-switch v-model="item.enabled" @click.stop @change="handleToggle(item)" size="small" />
+          <div class="agent-card-actions">
+            <el-button link type="primary" size="small" @click.stop="openDialog(item)">{{ $t('common.edit') }}</el-button>
+            <el-popconfirm :title="$t('common.deleteConfirm')" @confirm="handleDelete(item.id)">
+              <template #reference><el-button link type="danger" size="small" @click.stop>{{ $t('common.delete') }}</el-button></template>
+            </el-popconfirm>
+          </div>
+        </div>
+      </div>
+      <div v-if="filteredData.length === 0" class="agent-card-empty">{{ $t('common.noData') }}</div>
+    </div>
+
     <!-- Mobile Card List -->
     <div class="mobile-card-list" v-if="isMobile">
       <el-card v-for="item in filteredData" :key="item.id" shadow="hover">
@@ -44,7 +82,7 @@
       <div v-if="filteredData.length === 0" style="text-align:center;padding:40px;color:var(--cc-text-muted)">{{ $t('common.noData') }}</div>
     </div>
 
-          <el-table :data="filteredData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
+          <el-table v-if="viewMode === 'list' || isMobile" :data="filteredData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
         <el-table-column prop="id" label="ID" width="220" />
         <el-table-column prop="name" :label="$t('common.name')" width="160" />
         <el-table-column prop="modelId" :label="$t('common.model')" width="140" />
@@ -384,7 +422,7 @@
 import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
-import { SetUp, Plus, Search, ArrowUp, ArrowDown, Delete, Monitor, Connection } from '@element-plus/icons-vue'
+import { SetUp, Plus, Search, ArrowUp, ArrowDown, Delete, Monitor, Connection, Grid, List } from '@element-plus/icons-vue'
 import { getAgents, getAgent, createAgent, updateAgent, deleteAgent, getMcpServers, getSkills, getLlmModels, getSandboxProviders } from '@/api/admin'
 import '@/assets/admin.css'
 import { useMobile } from '@/composables/useMobile'
@@ -403,6 +441,7 @@ const isEdit = ref(false)
 const editId = ref('')
 const { isMobile } = useMobile()
 const search = ref('')
+const viewMode = ref<'card' | 'list'>('card')
 const formRef = ref<FormInstance>()
 const agentType = ref<'single' | 'multi'>('single')
 const activeFormTab = ref('basic')
@@ -1034,5 +1073,118 @@ onMounted(loadData)
 :global(.dark) .sub-agent-card {
   background: #1d1e1f;
   border-color: #363637;
+}
+
+/* View Toggle */
+.view-toggle { margin-left: auto; }
+.admin-table-toolbar { display: flex; align-items: center; gap: 12px; }
+
+/* Agent Card Grid */
+.agent-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 0 0 20px;
+}
+.agent-card-item {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+  background: var(--el-bg-color, #fff);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.agent-card-item:hover {
+  border-color: var(--el-color-primary, #409eff);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+:global(.dark) .agent-card-item {
+  background: #1d1e1f;
+  border-color: #363637;
+}
+:global(.dark) .agent-card-item:hover {
+  border-color: #3370ff;
+  background: #1a2a44;
+}
+.agent-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.agent-card-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(64,158,255,0.08);
+  color: var(--el-color-primary, #409eff);
+  flex-shrink: 0;
+}
+:global(.dark) .agent-card-icon {
+  background: rgba(51,112,255,0.15);
+}
+.agent-card-main { flex: 1; min-width: 0; }
+.agent-card-name {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--el-text-color-primary, #303133);
+  margin-bottom: 4px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-card-desc {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+.agent-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+.agent-card-single {
+  font-size: 12px;
+  color: #909399;
+}
+.agent-card-model {
+  font-size: 12px;
+  color: var(--el-text-color-secondary, #909399);
+  margin-left: auto;
+}
+.agent-card-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter, #e4e7ed);
+}
+:global(.dark) .agent-card-footer {
+  border-top-color: #363637;
+}
+.agent-card-actions {
+  display: flex;
+  gap: 4px;
+}
+.agent-card-empty {
+  grid-column: 1 / -1;
+  text-align: center;
+  padding: 60px 0;
+  color: var(--el-text-color-secondary, #909399);
+}
+
+@media (max-width: 767px) {
+  .agent-card-grid { grid-template-columns: 1fr; }
 }
 </style>

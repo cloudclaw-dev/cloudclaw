@@ -11,6 +11,7 @@ import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.web.bind.annotation.DeleteMapping;
 import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PatchMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
@@ -68,6 +69,22 @@ public class SessionController {
         log.debug("User [{}] getting session [{}]", userId, id);
         Session session = sessionService.getSession(userId, id);
         return Result.ok(session);
+    }
+
+    /**
+     * Rename a session (update title).
+     */
+    @PatchMapping("/{id}")
+    public Result<Void> renameSession(@AuthUser String userId,
+                                      @PathVariable String id,
+                                      @RequestBody java.util.Map<String, String> body) {
+        String title = body.get("title");
+        if (title == null || title.isBlank()) {
+            return Result.error("Title must not be blank");
+        }
+        log.info("User [{}] renaming session [{}] to '{}'", userId, id, title);
+        sessionService.updateTitle(id, userId, title.trim());
+        return Result.ok();
     }
 
     /**

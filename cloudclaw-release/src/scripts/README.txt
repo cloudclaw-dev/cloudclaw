@@ -1,4 +1,4 @@
-# CloudClaw 1.0.0 Release
+# CloudClaw 1.0.5 Release
 
 ## Quick Start
 
@@ -19,7 +19,7 @@ start.bat cluster       # cluster mode
 ## Directory Structure
 ```
 cloudclaw/
-├── cloudclaw-app-1.0.0.jar   # Application JAR
+├── cloudclaw-app-1.0.5.jar   # Application JAR
 ├── config/                    # External config (edit here)
 │   ├── application.yml            # Main config
 │   ├── application-standalone.yml # SQLite mode (default)

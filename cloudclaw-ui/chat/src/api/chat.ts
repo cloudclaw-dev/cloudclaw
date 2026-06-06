@@ -107,7 +107,8 @@ export const sessionApi = {
   list: (page = 1, size = 20, agentId?: string) => api.get('/v1/sessions', { params: { page, size, ...(agentId ? { agentId } : {}) } }),
   create: (data: { agentId: string; title?: string }) => api.post('/v1/sessions', data),
   get: (id: string) => api.get(`/v1/sessions/${id}`),
-  delete: (id: string) => api.delete(`/v1/sessions/${id}`)
+  delete: (id: string) => api.delete(`/v1/sessions/${id}`),
+  rename: (id: string, title: string) => api.patch(`/v1/sessions/${id}`, { title })
 }
 
 export const messageApi = {
@@ -116,6 +117,7 @@ export const messageApi = {
 
 export const agentApi = {
   list: () => api.get('/v1/agents'),
+  featured: () => api.get('/v1/agents/featured'),
   get: (id: string) => api.get(`/v1/agents/${id}`)
 }
 

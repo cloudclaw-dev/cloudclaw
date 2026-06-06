@@ -52,6 +52,22 @@ public class AgentController {
     }
 
     /**
+     * List featured agents for the welcome page.
+     * Returns only agents that are enabled AND featured=true.
+     */
+    @GetMapping("/featured")
+    public Result<List<Agent>> listFeaturedAgents(@AuthUser String userId) {
+        log.debug("User [{}] listing featured agents", userId);
+        List<Agent> agents = agentQueryRepository.findByEnabledTrue();
+        agents = agents.stream()
+                .filter(a -> Boolean.TRUE.equals(a.getFeatured()))
+                .toList();
+        // Clear system prompts
+        agents.forEach(agent -> agent.setSystemPrompt(null));
+        return Result.ok(agents);
+    }
+
+    /**
      * Get detailed information about a specific agent.
      *
      * <p>The system prompt field is cleared before returning to prevent

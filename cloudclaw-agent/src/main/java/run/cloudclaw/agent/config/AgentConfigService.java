@@ -129,6 +129,10 @@ public class AgentConfigService {
         config.setSandboxMode(agent.getSandboxMode() != null ? agent.getSandboxMode() : "STATELESS");
         config.setSandboxTimeout(agent.getSandboxTimeout() != null ? agent.getSandboxTimeout() : 30);
         config.setSandboxProviderId(agent.getSandboxProviderId());
+        config.setEmoji(agent.getEmoji());
+        config.setFeatured(agent.getFeatured() != null ? agent.getFeatured() : false);
+        config.setGreetingMessage(agent.getGreetingMessage());
+        config.setSuggestedPrompts(agent.getSuggestedPrompts());
 
         // Parse sub_agents JSON (Agent Transfer v2)
         if (agent.getSubAgents() != null && !agent.getSubAgents().isBlank()) {

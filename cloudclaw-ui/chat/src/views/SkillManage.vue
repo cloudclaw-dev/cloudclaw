@@ -22,7 +22,42 @@
         <el-input v-model="search" :placeholder="$t('common.search')" style="width: 300px" clearable @keyup.enter="loadData" @clear="loadData">
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <div class="view-toggle">
+          <el-button-group>
+            <el-button :type="viewMode === 'card' ? 'primary' : 'default'" @click="viewMode = 'card'"><el-icon><Grid /></el-icon></el-button>
+            <el-button :type="viewMode === 'list' ? 'primary' : 'default'" @click="viewMode = 'list'"><el-icon><List /></el-icon></el-button>
+          </el-button-group>
+        </div>
       </div>
+
+    <!-- Card View -->
+    <div v-if="viewMode === 'card' && !isMobile" class="item-card-grid">
+      <div v-for="item in filteredData" :key="item.id" class="item-card" @click="openEditDialog(item)">
+        <div class="item-card-top">
+          <div class="item-card-icon"><el-icon :size="24"><Reading /></el-icon></div>
+          <div class="item-card-main">
+            <div class="item-card-name">{{ item.name }}</div>
+            <div class="item-card-desc" v-if="item.description">{{ item.description }}</div>
+          </div>
+        </div>
+        <div class="item-card-meta">
+          <el-tag :type="item.enabled ? 'success' : 'info'" size="small">{{ item.enabled ? t('common.enable') : t('common.disable') }}</el-tag>
+          <span class="item-card-meta-right">{{ item._fileCount ?? 0 }} files &middot; {{ item.updatedAt || '-' }}</span>
+        </div>
+        <div class="item-card-footer">
+          <el-switch v-model="item.enabled" @click.stop @change="toggleEnabled(item)" size="small" />
+          <div class="item-card-actions">
+            <el-button link type="primary" size="small" @click.stop="openFileBrowser(item)">{{ $t('skill.files') }}</el-button>
+            <el-button link type="primary" size="small" @click.stop="openEditDialog(item)">{{ $t('common.edit') }}</el-button>
+            <el-popconfirm :title="$t('common.deleteConfirm')" @confirm="handleDelete(item.id)">
+              <template #reference><el-button link type="danger" size="small" @click.stop>{{ $t('common.delete') }}</el-button></template>
+            </el-popconfirm>
+          </div>
+        </div>
+      </div>
+      <div v-if="filteredData.length === 0" class="item-card-empty">{{ $t('common.noData') }}</div>
+    </div>
+
     <!-- Mobile Card List -->
     <div class="mobile-card-list" v-if="isMobile">
       <el-card v-for="item in filteredData" :key="item.id" shadow="hover">
@@ -41,7 +76,7 @@
       <div v-if="filteredData.length === 0" style="text-align:center;padding:40px;color:var(--cc-text-muted)">{{ $t('common.noData') }}</div>
     </div>
 
-          <el-table :data="filteredData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
+          <el-table v-if="viewMode === 'list' || isMobile" :data="filteredData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
         <el-table-column prop="name" :label="$t('common.name')" width="180" />
         <el-table-column prop="description" :label="$t('common.description')" show-overflow-tooltip />
         <el-table-column prop="enabled" :label="$t('common.status')" width="80">
@@ -144,7 +179,7 @@
 <script setup lang="ts">
 import { ref, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
-import { Reading, Plus, Search, Upload } from '@element-plus/icons-vue'
+import { Reading, Plus, Search, Upload, Grid, List } from '@element-plus/icons-vue'
 import { getSkills, uploadSkillZip, updateSkill, deleteSkill, getSkillFiles, getSkillFile, saveSkillFile, deleteSkillFile } from '@/api/admin'
 import '@/assets/admin.css'
 import { useMobile } from '@/composables/useMobile'
@@ -155,6 +190,7 @@ const tableData = ref<any[]>([])
 const loading = ref(false)
 const { isMobile } = useMobile()
 const search = ref('')
+const viewMode = ref<'card' | 'list'>('card')
 
 // Edit dialog
 const editDialogVisible = ref(false)

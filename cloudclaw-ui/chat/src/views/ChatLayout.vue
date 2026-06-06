@@ -1,7 +1,8 @@
 <template>
   <div class="chat-layout" :class="{ dark: isDark }">
     <el-container class="main-container">
-      <el-aside :width="navCollapsed ? '64px' : '200px'" class="nav-bar" :class="{ collapsed: navCollapsed }">
+      <!-- Left Nav Bar -->
+      <el-aside :width="navCollapsed ? '64px' : '260px'" class="nav-bar" :class="{ collapsed: navCollapsed }">
         <a href="http://cloudclaw.run" target="_blank" rel="noopener" class="nav-bar-header-link" style="text-decoration:none">
           <div class="nav-bar-header">
             <img src="@/assets/logo.png" alt="CC" class="nav-logo" />
@@ -9,24 +10,50 @@
           </div>
           <div v-if="!navCollapsed" class="nav-version">v{{ systemVersion }} · {{ systemMode }}</div>
         </a>
+
+        <!-- Action buttons -->
         <div class="nav-bar-menu">
-          <div class="nav-bar-item" :class="{ active: $route.path === '/' || $route.path === '' }" @click="$router.push('/')" :title="navCollapsed ? t('nav.chat') : ''">
-            <el-icon :size="20"><ChatDotRound /></el-icon>
-            <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ $t('nav.chat') }}</span>
+          <div class="nav-bar-item new-chat-btn" @click="showNewSessionDialog = true" :title="navCollapsed ? t('chat.newSession') : ''">
+            <el-icon :size="20"><EditPen /></el-icon>
+            <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ navCollapsed ? '' : $t('chat.newSession') }}</span>
           </div>
+
+        </div>
+
+        <!-- Session list (inline in nav) -->
+        <div v-if="!navCollapsed" class="nav-session-list">
+          <SessionList
+            :sessions="sessions"
+            :agents="agents"
+            :currentSessionId="currentSessionId"
+            @selectSession="handleSelectSession"
+            @deleteSession="deleteSession"
+            @renameSession="renameSession"
+            @pinSession="pinSession"
+            @unpinSession="unpinSession"
+          />
+        </div>
+        <div v-else class="nav-session-list-collapsed">
+          <div v-for="s in sessions.slice(0, 8)" :key="s.id"
+               class="nav-bar-item collapsed-session"
+               :class="{ active: currentSessionId === s.id }"
+               @click="handleSelectSession(s.id)"
+               :title="s.title || t('chat.newChat')">
+            <el-icon :size="16"><ChatDotRound /></el-icon>
+          </div>
+        </div>
+
+        <!-- Bottom section -->
+        <div class="nav-bar-bottom">
+          <div class="nav-bar-divider" />
           <div class="nav-bar-item" :class="{ active: $route.path === '/memory' }" @click="$router.push({ path: '/memory', query: { agentId: selectedAgentId } })" :title="navCollapsed ? t('nav.memory') : ''">
             <el-icon :size="20"><Memo /></el-icon>
             <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ $t('nav.memory') }}</span>
           </div>
-          <template v-if="isAdmin">
-            <div class="nav-bar-divider" />
-            <div v-for="item in adminMenuItems" :key="item.path" class="nav-bar-item" :class="{ active: $route.path === item.path }" @click="$router.push(item.path)" :title="navCollapsed ? item.title : ''">
-              <el-icon :size="20"><component :is="item.icon" /></el-icon>
-              <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ item.title }}</span>
-            </div>
-          </template>
-        </div>
-        <div class="nav-bar-bottom">
+          <div v-if="isAdmin" class="nav-bar-item" :class="{ active: $route.path.startsWith('/admin') }" @click="$router.push('/admin')" :title="navCollapsed ? t('nav.systemAdmin') : ''">
+            <el-icon :size="20"><Setting /></el-icon>
+            <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ $t('nav.systemAdmin') }}</span>
+          </div>
           <div class="nav-bar-divider" />
           <div class="nav-bar-item" @click="toggleLocale">
             <span class="locale-icon">{{ locale === 'zh' ? 'EN' : '中' }}</span>
@@ -47,163 +74,150 @@
         </div>
       </el-aside>
 
+      <!-- Content Area -->
       <el-container class="content-container">
-        <template v-if="!showAdminPage">
-          <div v-if="isMobile && showMobileSessions" class="mobile-session-overlay" @click="showMobileSessions = false" />
-          <SessionSidebar
-            :agents="agents"
-            :sessions="sessions"
-            :currentSessionId="currentSessionId"
-            :selectedAgentId="selectedAgentId"
-            :isMobile="isMobile"
-            :showMobileSessions="showMobileSessions"
-            @update:selectedAgentId="handleAgentChange"
-            @selectSession="handleSelectSession"
-            @deleteSession="deleteSession"
-            @newSession="showNewSessionDialog = true"
-            @renameSession="renameSession"
-            @pinSession="pinSession"
-            @unpinSession="unpinSession"
-            @batchDelete="batchDeleteSessions"
-            @batchPin="batchPinSessions"
-          />
-          <el-container class="chat-container">
-            <el-header class="chat-header" height="56px">
-              <div class="chat-header-info">
-                <el-button v-if="isMobile" :icon="Operation" circle size="small" text class="mobile-session-btn" @click="showMobileSessions = !showMobileSessions" />
-                <el-icon v-if="!isMobile" :size="18" class="chat-header-icon-text"><ChatLineSquare /></el-icon>
-                <span class="header-title">{{ currentSessionTitle || 'CloudClaw Chat' }}</span>
-              </div>
-              <div>
-                <el-tag v-if="activeAgentName" type="warning" size="small" effect="plain" style="margin-right: 8px">{{ activeAgentName }}</el-tag>
-                <el-tag v-if="currentAgent" type="info" size="small" effect="plain">{{ currentAgent.name }}</el-tag>
-              </div>
-            </el-header>
-            <el-main class="messages-area" ref="messagesAreaRef">
-              <div class="messages-inner">
-                <transition name="fade" mode="out-in">
-                  <div v-if="!currentSessionId" key="welcome" class="welcome-wrapper">
-                    <WelcomeSection @newSession="showNewSessionDialog = true" @startWithPrompt="startWithPrompt" />
-                  </div>
-                  <div v-else key="messages" class="messages-transition">
-                    <SkeletonScreen v-if="loadingMessages" type="message" :count="3" />
-                    <template v-else>
-                      <transition-group name="fade">
-                        <MessageBubble
-                          v-for="(msg, index) in messages"
-                          :key="'msg-' + index"
-                          :msg="msg"
-                          :index="index"
-                          :md="md"
-                          @regenerate="handleRegenerate"
-                          @edit="handleEdit"
-                        />
-                      </transition-group>
-                      <div v-if="isStreaming && (streamingContent || streamingSegments.length > 0 || workflowState)" class="message-row assistant streaming-fade">
-                        <div class="message-avatar"><el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar></div>
-                        <div class="message-content">
-                          <div class="message-meta">Assistant<span v-if="activeAgentName" class="agent-label"> · {{ activeAgentName }}</span></div>
-                          <WorkflowPanel :workflowState="workflowState" />
-                          <template v-for="(seg, si) in streamingSegments" :key="si">
-                            <div v-if="seg.type === 'tool_call'" class="tool-call-card">
-                              <div class="tool-call-header"><el-icon class="tool-icon"><SetUp /></el-icon><span class="tool-name">{{ seg.toolName }}</span></div>
-                              <pre v-if="seg.content" class="tool-args">{{ formatToolArgs(seg.content) }}</pre>
+        <el-container class="chat-container" @click="isMobile && showMobileSessions ? showMobileSessions = false : null">
+          <el-header class="chat-header" height="56px">
+            <div class="chat-header-info">
+              <el-button v-if="isMobile" :icon="Operation" circle size="small" text class="mobile-session-btn" @click.stop="showMobileSessions = !showMobileSessions" />
+              <el-icon v-if="!isMobile" :size="18" class="chat-header-icon-text"><ChatLineSquare /></el-icon>
+              <span class="header-title">{{ currentSessionTitle || 'CloudClaw Chat' }}</span>
+            </div>
+            <el-tag v-if="activeAgentName" type="warning" size="small" effect="plain">{{ activeAgentName }}</el-tag>
+          </el-header>
+          <el-main class="messages-area" ref="messagesAreaRef">
+            <div class="messages-inner">
+              <transition name="fade" mode="out-in">
+                <div v-if="!currentSessionId" key="welcome" class="welcome-wrapper">
+                  <WelcomeSection @newSession="showNewSessionDialog = true" @startWithPrompt="startWithPrompt" />
+                </div>
+                <div v-else key="messages" class="messages-transition">
+                  <SkeletonScreen v-if="loadingMessages" type="message" :count="3" />
+                  <template v-else>
+                    <transition-group name="fade">
+                      <MessageBubble
+                        v-for="(msg, index) in messages"
+                        :key="'msg-' + index"
+                        :msg="msg"
+                        :index="index"
+                        :md="md"
+                        @regenerate="handleRegenerate"
+                        @edit="handleEdit"
+                      />
+                    </transition-group>
+                    <div v-if="isStreaming && (streamingContent || streamingSegments.length > 0 || workflowState)" class="message-row assistant streaming-fade">
+                      <div class="message-avatar"><el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar></div>
+                      <div class="message-content">
+                        <div class="message-meta">Assistant<span v-if="activeAgentName" class="agent-label"> · {{ activeAgentName }}</span></div>
+                        <WorkflowPanel :workflowState="workflowState" />
+                        <template v-for="(seg, si) in streamingSegments" :key="si">
+                          <div v-if="seg.type === 'tool_call'" class="tool-card" :class="{ 'tool-done': seg.status === 'done', 'tool-pending': seg.status === 'pending' }">
+                            <div class="tool-card-header">
+                              <span class="tool-card-icon">{{ getToolDisplay(seg.toolName || '').icon }}</span>
+                              <span class="tool-card-label">{{ getToolDisplay(seg.toolName || '').label }}</span>
+                              <span v-if="seg.status === 'pending'" class="tool-status pending">⏳</span>
+                              <span v-else class="tool-status done">✅</span>
                             </div>
-                            <div v-else-if="seg.type === 'tool_result'" class="tool-result-card">
-                              <div class="tool-result-header"><el-icon class="tool-icon"><Finished /></el-icon><span>{{ seg.toolName }} result</span></div>
-                              <pre class="tool-result-content">{{ seg.content }}</pre>
+                            <div v-if="seg.content" class="tool-card-desc">{{ formatToolCallHuman(seg.toolName || '', seg.content) }}</div>
+                            <template v-if="seg.status === 'done' && seg.resultContent">
+                              <div class="tool-card-result-toggle" @click="toggleToolResult(si)">
+                                {{ formatToolResultSummary(seg.toolName || '', seg.resultContent) }}
+                                <span class="tool-toggle-icon">{{ expandedTools[si] ? '▲' : '▼' }}</span>
+                              </div>
+                              <div v-if="expandedTools[si]" class="tool-card-result-detail">
+                                <pre>{{ formatToolArgs(seg.resultContent) }}</pre>
+                              </div>
+                            </template>
+                          </div>
+                          <div v-else-if="seg.type === 'tool_result'" class="tool-card tool-done">
+                            <div class="tool-card-header">
+                              <span class="tool-card-icon">{{ getToolDisplay(seg.toolName || '').icon }}</span>
+                              <span class="tool-card-label">{{ getToolDisplay(seg.toolName || '').label }}</span>
+                              <span class="tool-status done">✅</span>
                             </div>
-                            <div v-else-if="seg.type === 'workflow_status'" class="workflow-event-text">{{ seg.content }}</div>
-                            <div v-else class="message-text markdown-body streaming-fade" v-html="renderMarkdown(seg.content)" />
-                          </template>
-                        </div>
+                            <div class="tool-card-result-toggle" @click="toggleToolResult(si)">
+                              {{ formatToolResultSummary(seg.toolName || '', seg.content) }}
+                              <span class="tool-toggle-icon">{{ expandedTools[si] ? '▲' : '▼' }}</span>
+                            </div>
+                            <div v-if="expandedTools[si]" class="tool-card-result-detail">
+                              <pre>{{ formatToolArgs(seg.content) }}</pre>
+                            </div>
+                          </div>
+                          <div v-else-if="seg.type === 'workflow_status'" class="workflow-event-text">{{ seg.content }}</div>
+                          <div v-else class="message-text markdown-body streaming-fade" v-html="renderMarkdown(seg.content)" />
+                        </template>
                       </div>
-                      <div v-if="isStreaming && !streamingContent && streamingSegments.length === 0" class="message-row assistant streaming-fade">
-                        <div class="message-avatar"><el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar></div>
-                        <div class="message-content">
-                          <div class="message-meta">Assistant<span v-if="activeAgentName" class="agent-label"> · {{ activeAgentName }}</span></div>
-                          <div class="message-text"><div class="typing-indicator"><span></span><span></span><span></span></div></div>
-                        </div>
-                      </div>
-                    </template>
-                    <div v-if="reconnectStatus" class="reconnect-banner" :class="reconnectStatus.type">
-                      <el-icon v-if="reconnectStatus.type === 'reconnecting'" class="is-loading"><Loading /></el-icon>
-                      <el-icon v-else-if="reconnectStatus.type === 'error'"><Close /></el-icon>
-                      <span>{{ reconnectStatus.message }}</span>
                     </div>
+                    <div v-if="isStreaming && !streamingContent && streamingSegments.length === 0" class="message-row assistant streaming-fade">
+                      <div class="message-avatar"><el-avatar :size="32" class="assistant-avatar"><el-icon><Monitor /></el-icon></el-avatar></div>
+                      <div class="message-content">
+                        <div class="message-meta">Assistant<span v-if="activeAgentName" class="agent-label"> · {{ activeAgentName }}</span></div>
+                        <div class="message-text"><div class="typing-indicator"><span></span><span></span><span></span></div></div>
+                      </div>
+                    </div>
+                  </template>
+                  <div v-if="reconnectStatus" class="reconnect-banner" :class="reconnectStatus.type">
+                    <el-icon v-if="reconnectStatus.type === 'reconnecting'" class="is-loading"><Loading /></el-icon>
+                    <el-icon v-else-if="reconnectStatus.type === 'error'"><Close /></el-icon>
+                    <span>{{ reconnectStatus.message }}</span>
                   </div>
-                </transition>
-              </div>
-            </el-main>
-            <ChatInput
-              v-model="inputMessage"
-              :isStreaming="isStreaming"
-              :contextStats="contextStats"
-              @send="sendMessage"
-              @stop="stopGeneration"
-            />
-          </el-container>
-        </template>
-        <el-main v-else class="admin-page-area"><router-view /></el-main>
+                </div>
+              </transition>
+            </div>
+          </el-main>
+          <ChatInput
+            v-model="inputMessage"
+            :isStreaming="isStreaming"
+            :contextStats="contextStats"
+            @send="sendMessage"
+            @stop="stopGeneration"
+          />
+        </el-container>
       </el-container>
     </el-container>
 
-    <el-dialog v-model="showNewSessionDialog" :title="$t('chat.newSession')" width="400px" :close-on-click-modal="true">
-      <el-form label-position="top">
-        <el-form-item label="Agent">
-          <el-select v-model="newSessionAgentId" :placeholder="$t('chat.selectAgent')" style="width: 100%">
-            <el-option v-for="agent in agents" :key="agent.id" :label="agent.name" :value="agent.id" />
-          </el-select>
-        </el-form-item>
-        <el-form-item :label="$t('chat.title')">
-          <el-input v-model="newSessionTitle" :placeholder="$t('chat.sessionTitlePlaceholder')" />
-        </el-form-item>
-      </el-form>
-      <template #footer>
-        <el-button @click="showNewSessionDialog = false">{{ $t('common.cancel') }}</el-button>
-        <el-button type="primary" :disabled="!newSessionAgentId" @click="createNewSession">{{ $t('chat.newSession') }}</el-button>
-      </template>
-    </el-dialog>
+    <!-- Mobile session overlay -->
+    <div v-if="isMobile && showMobileSessions" class="mobile-overlay" @click="showMobileSessions = false" />
+    <div v-if="isMobile && showMobileSessions" class="mobile-session-panel">
+      <div class="mobile-session-header">
+        <span>{{ $t('nav.chat') }}</span>
+        <el-button text @click="showNewSessionDialog = true"><el-icon><Plus /></el-icon></el-button>
+      </div>
+      <SessionList
+        :sessions="sessions"
+        :agents="agents"
+        :currentSessionId="currentSessionId"
+        @selectSession="handleSelectSession($event); showMobileSessions = false"
+        @deleteSession="deleteSession"
+        @renameSession="renameSession"
+        @pinSession="pinSession"
+        @unpinSession="unpinSession"
+      />
+    </div>
 
+    <!-- New Chat Dialog -->
+    <NewChatDialog v-model="showNewSessionDialog" :agents="agents" @selectAgent="startChatWithAgent" />
+
+
+
+    <!-- Mobile tab bar -->
     <div class="mobile-tab-bar">
-      <div class="tab-item" :class="{ active: mobileTab === 'chat' && !showAdminPage }" @click="handleMobileTab('chat')">
+      <div class="tab-item" :class="{ active: mobileTab === 'chat' }" @click="handleMobileTab('chat')">
         <el-icon :size="22"><ChatDotRound /></el-icon>
         <span>{{ $t('nav.chat') }}</span>
       </div>
-      <div class="tab-item" :class="{ active: mobileTab === 'memory' || showMobileMore }" @click="handleMobileMore">
-        <el-icon :size="22"><More /></el-icon>
-        <span>{{ $t('common.more') }}</span>
-      </div>
-      <div v-if="isAdmin" class="tab-item" :class="{ active: showMobileAdmin || showAdminPage }" @click="handleMobileTab('admin')">
+
+      <div v-if="isAdmin" class="tab-item" :class="{ active: $route.path.startsWith('/admin') }" @click="$router.push('/admin')">
         <el-icon :size="22"><Setting /></el-icon>
-        <span>{{ $t('common.manage') }}</span>
+        <span>{{ $t('nav.systemAdmin') }}</span>
       </div>
     </div>
 
+    <!-- Mobile overlay backdrop -->
     <div v-if="showMobileMore" class="mobile-overlay" @click="showMobileMore = false" />
-    <div v-if="showMobileMore" class="mobile-menu more-menu">
-      <div class="mobile-menu-item" @click="showMobileMore = false; mobileTab = 'memory'; router.push({ path: '/memory', query: { agentId: selectedAgentId } })">
-        <el-icon><Memo /></el-icon><span>{{ $t('nav.memory') }}</span>
-      </div>
-      <div class="mobile-menu-item" @click="toggleLocale(); showMobileMore = false">
-        <span class="locale-icon">{{ locale === 'zh' ? 'EN' : '中' }}</span><span>{{ locale === 'zh' ? 'English' : '中文' }}</span>
-      </div>
-      <div class="mobile-menu-item" @click="toggleDark(); showMobileMore = false">
-        <el-icon><component :is="isDark ? Sunny : Moon" /></el-icon><span>{{ isDark ? t('login.light') : t('login.dark') }}</span>
-      </div>
-      <div class="mobile-menu-item" @click="handleLogout(); showMobileMore = false">
-        <el-icon><SwitchButton /></el-icon><span>{{ $t('nav.logout') }}</span>
-      </div>
-    </div>
-
-    <div v-if="showMobileAdmin" class="mobile-overlay" @click="showMobileAdmin = false" />
-    <div v-if="showMobileAdmin" class="mobile-menu admin-menu">
-      <div v-for="item in adminMenuItems" :key="item.path" class="mobile-menu-item" @click="handleMobileAdminNav(item.path)">
-        <el-icon><component :is="item.icon" /></el-icon><span>{{ item.title }}</span>
-      </div>
-    </div>
   </div>
 </template>
+
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch, provide } from 'vue'
@@ -211,59 +225,34 @@ import { useRouter } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound, ChatLineSquare, Memo, Sunny, Moon, SwitchButton, Fold,
-  Monitor, SetUp, Finished, Operation, More, Setting, Odometer, User,
-  Connection, Reading, Cpu, Loading, Check, Clock, Right, Grid, Close
+  Monitor, SetUp, Operation, Setting, Odometer, User,
+  Connection, Reading, Cpu, Loading, Grid, Close, EditPen, Plus
 } from '@element-plus/icons-vue'
-import MarkdownIt from 'markdown-it'
-import hljs from 'highlight.js/lib/core'
-import javascript from 'highlight.js/lib/languages/javascript'
-import typescript from 'highlight.js/lib/languages/typescript'
-import python from 'highlight.js/lib/languages/python'
-import java from 'highlight.js/lib/languages/java'
-import bash from 'highlight.js/lib/languages/bash'
-import sql from 'highlight.js/lib/languages/sql'
-import json from 'highlight.js/lib/languages/json'
-import yaml from 'highlight.js/lib/languages/yaml'
-import xml from 'highlight.js/lib/languages/xml'
-import css from 'highlight.js/lib/languages/css'
-import html from 'highlight.js/lib/languages/xml'
-import plaintext from 'highlight.js/lib/languages/plaintext'
-import 'highlight.js/styles/github.css'
-import 'highlight.js/styles/github-dark.css'
+import { renderMarkdown, md } from '@/utils/markdown'
 import api from '@/api/index'
-import { sessionApi, messageApi, agentApi, sendChatMessage, sendMessageAsync, pollMessages } from '@/api/chat'
+import { sessionApi, messageApi, agentApi, sendChatMessage } from '@/api/chat'
 import { useI18n } from 'vue-i18n'
-import SessionSidebar from '@/components/SessionSidebar.vue'
+import SessionList from '@/components/SessionList.vue'
+import NewChatDialog from '@/components/NewChatDialog.vue'
 import MessageBubble from '@/components/MessageBubble.vue'
 import ChatInput from '@/components/ChatInput.vue'
 import WelcomeSection from '@/components/WelcomeSection.vue'
+import { getToolDisplay, formatToolCallHuman, formatToolResultSummary } from '@/utils/toolDisplay'
 import WorkflowPanel from '@/components/WorkflowPanel.vue'
 import SkeletonScreen from '@/components/SkeletonScreen.vue'
 
-hljs.registerLanguage('javascript', javascript)
-hljs.registerLanguage('js', javascript)
-hljs.registerLanguage('typescript', typescript)
-hljs.registerLanguage('ts', typescript)
-hljs.registerLanguage('python', python)
-hljs.registerLanguage('py', python)
-hljs.registerLanguage('java', java)
-hljs.registerLanguage('bash', bash)
-hljs.registerLanguage('shell', bash)
-hljs.registerLanguage('sql', sql)
-hljs.registerLanguage('json', json)
-hljs.registerLanguage('yaml', yaml)
-hljs.registerLanguage('yml', yaml)
-hljs.registerLanguage('xml', xml)
-hljs.registerLanguage('html', html)
-hljs.registerLanguage('css', css)
-hljs.registerLanguage('plaintext', plaintext)
-hljs.registerLanguage('text', plaintext)
 
 // ===== Types =====
 interface Agent { id: string; name: string; description?: string; systemPrompt?: string }
 interface Session { id: string; title: string; agentId: string; createdAt: string; updatedAt: string }
-interface MessageSegment { type: 'text' | 'tool_call' | 'tool_result' | 'workflow_status'; content: string; toolName?: string }
-interface Message { role: 'user' | 'assistant'; content: string; segments?: MessageSegment[]; createdAt?: string; agentName?: string }
+interface MessageSegment {
+  type: 'text' | 'tool_call' | 'tool_result' | 'workflow_status'
+  content: string
+  toolName?: string
+  status?: 'pending' | 'done' | 'error'
+  resultContent?: string
+}
+interface Message { role: 'user' | 'assistant'; content: string; segments?: MessageSegment[]; createdAt?: string; agentName?: string; memoryRefs?: { type: string; itemId: string; content: string }[] }
 interface WorkflowStepStatus { name: string; status: 'pending' | 'running' | 'done' }
 interface WorkflowState { mode: string; steps: WorkflowStepStatus[]; activeNode: string; supervisorAction: string; mergeStatus: string; reason: string }
 
@@ -273,7 +262,7 @@ const isDark = ref(false)
 const navCollapsed = ref(false)
 const agents = ref<Agent[]>([])
 const sessions = ref<Session[]>([])
-const systemVersion = ref('1.0.4')
+const systemVersion = ref('1.0.5-SNAPSHOT')
 const systemMode = ref('standalone')
 const currentSessionId = ref('')
 const messages = ref<Message[]>([])
@@ -290,11 +279,10 @@ const reconnectStatus = ref<{ type: 'reconnecting' | 'error'; message: string } 
 
 const showNewSessionDialog = ref(false)
 const newSessionAgentId = ref('')
-const newSessionTitle = ref('')
 const selectedAgentId = ref('')
 
 const mobileTab = ref<'chat' | 'memory' | 'admin'>('chat')
-const showMobileSessions = ref(true)
+const showMobileSessions = ref(false)
 const showMobileMore = ref(false)
 const showMobileAdmin = ref(false)
 const isMobile = ref(false)
@@ -306,22 +294,10 @@ const { t, locale } = useI18n()
 provide('isDark', isDark)
 provide('isMobile', isMobile)
 
-// ===== Markdown Renderer =====
-const md = new MarkdownIt({
-  html: false, linkify: true, typographer: true,
-  highlight(str: string, lang: string) {
-    if (lang && hljs.getLanguage(lang)) {
-      try {
-        const highlighted = hljs.highlight(str, { language: lang, ignoreIllegals: true }).value
-        return `<pre class="hljs" data-lang="${lang}"><code data-code="${lang}">${highlighted}</code></pre>`
-      } catch (_) { /* fallback */ }
-    }
-    return '<pre class="hljs"><code>' + md.utils.escapeHtml(str) + '</code></pre>'
-  }
-})
-
-const renderMarkdown = (content: string): string => content ? md.render(content) : ''
+// Markdown renderer imported from @/utils/markdown
 const formatToolArgs = (args: string): string => { try { return JSON.stringify(JSON.parse(args), null, 2) } catch { return args } }
+const expandedTools = ref<Record<number, boolean>>({})
+const toggleToolResult = (idx: number) => { expandedTools.value[idx] = !expandedTools.value[idx] }
 
 // ===== Helpers =====
 function parseJwtRole(token: string): string | null {
@@ -337,28 +313,12 @@ const isAdmin = computed(() => {
   return token ? parseJwtRole(token) === 'admin' : false
 })
 
-const showAdminPage = computed(() => { const p = router.currentRoute.value.path; return p !== '/' && p !== '' })
-
-const adminMenuItems = computed(() => [
-  { path: '/dashboard', title: t('dashboard.title'), icon: Odometer },
-  { path: '/agents', title: t('nav.agent'), icon: SetUp },
-  { path: '/mcp-servers', title: t('nav.mcp'), icon: Connection },
-  { path: '/skills', title: t('nav.skill'), icon: Reading },
-  { path: '/llm', title: t('nav.llm'), icon: Cpu },
-  { path: '/users', title: t('nav.user'), icon: User },
-  { path: '/sandboxes', title: t('nav.sandbox'), icon: Grid },
-  { path: '/monitor', title: t('nav.monitor'), icon: Monitor }
-])
 
 const currentSessionTitle = computed(() => {
   if (!currentSessionId.value) return 'CloudClaw Chat'
   return sessions.value.find(s => s.id === currentSessionId.value)?.title || 'Untitled Chat'
 })
 
-const currentAgent = computed(() => {
-  const session = sessions.value.find(s => s.id === currentSessionId.value)
-  return session ? agents.value.find(a => a.id === session.agentId) || null : null
-})
 
 // ===== Locale & Theme =====
 const toggleLocale = () => { locale.value = locale.value === 'zh' ? 'en' : 'zh'; localStorage.setItem('cloudclaw-locale', locale.value) }
@@ -382,7 +342,7 @@ const loadAgents = async () => {
 
 const loadSessions = async () => {
   try {
-    const res: any = await sessionApi.list(1, 50, selectedAgentId.value || undefined)
+    const res: any = await sessionApi.list(1, 50, undefined)
     sessions.value = res.data?.list || res.data?.items || res.data || res.items || []
   } catch (e) { /* silently fail */ }
 }
@@ -417,30 +377,26 @@ const handleSelectSession = (id: string) => {
   loadMessages(id)
 }
 
-const handleAgentChange = async (id: string) => {
-  selectedAgentId.value = id
-  currentSessionId.value = ''; messages.value = []
-  streamingContent.value = ''; streamingSegments.value = []; workflowState.value = null; activeAgentName.value = ''; isStreaming.value = false
-  if (abortController) { abortController.abort(); abortController = null }
-  newSessionAgentId.value = id
-  await loadSessions()
+
+const startChatWithAgent = async (agent: any) => {
+  try {
+    const res: any = await sessionApi.create({ agentId: agent.id, title: '' })
+    const newSession = res.data || res
+    showNewSessionDialog.value = false
+    if (newSession?.id) {
+      await loadSessions()
+      handleSelectSession(newSession.id)
+    }
+  } catch (e) {
+    console.error('Failed to create session:', e)
+    ElMessage.error(t('chat.createSessionFailed') || 'Failed to create session')
+  }
 }
 
-const createNewSession = async () => {
-  if (!newSessionAgentId.value) return
-  try {
-    const res: any = await sessionApi.create({ agentId: newSessionAgentId.value, title: newSessionTitle.value || undefined })
-    const newSession = res.data || res
-    showNewSessionDialog.value = false; newSessionTitle.value = ''
-    await loadSessions()
-    if (newSession?.id) handleSelectSession(newSession.id)
-    ElMessage.success(t('chat.sessionCreated'))
-  } catch (e) { /* handled by interceptor */ }
-}
 
 const deleteSession = async (sessionId: string) => {
   try {
-    await ElMessageBox.confirm('Are you sure you want to delete this conversation?', 'Delete Conversation', { confirmButtonText: 'Delete', cancelButtonText: 'Cancel', type: 'warning' })
+    await ElMessageBox.confirm(t('chat.deleteSessionConfirm'), t('chat.deleteSession'), { confirmButtonText: t('common.delete'), cancelButtonText: t('common.cancel'), type: 'warning' })
     await sessionApi.delete(sessionId)
     sessions.value = sessions.value.filter(s => s.id !== sessionId)
     if (currentSessionId.value === sessionId) { currentSessionId.value = ''; messages.value = [] }
@@ -450,58 +406,14 @@ const deleteSession = async (sessionId: string) => {
 
 const renameSession = async (id: string, title: string) => {
   try {
-    await sessionApi.create({ agentId: selectedAgentId.value, title })
+    await sessionApi.rename(id, title)
     const session = sessions.value.find(s => s.id === id)
     if (session) session.title = title
   } catch (e) { /* handled */ }
 }
 
-const pinSession = (_id: string) => { /* pin handled in SessionSidebar localStorage */ }
-const unpinSession = (_id: string) => { /* unpin handled in SessionSidebar localStorage */ }
-const batchDeleteSessions = async (ids: string[]) => {
-  try {
-    for (const id of ids) await sessionApi.delete(id)
-    sessions.value = sessions.value.filter(s => !ids.includes(s.id))
-    if (ids.includes(currentSessionId.value)) { currentSessionId.value = ''; messages.value = [] }
-    ElMessage.success(t('chat.sessionDeleted'))
-  } catch (e) { /* handled */ }
-}
-const batchPinSessions = (_ids: string[]) => { /* handled in SessionSidebar */ }
-
-// ===== SSE with Reconnection =====
-const sendWithRetry = async (sessionId: string, msg: string, attempt = 0): Promise<void> => {
-  const maxRetries = 3
-  const delays = [1000, 2000, 4000]
-  return new Promise((resolve, reject) => {
-    sendChatMessage(sessionId, msg, onChunk, onDone, onError, abortController?.signal)
-    function onChunk(chunk: any) {
-      reconnectStatus.value = null
-      handleChunk(chunk)
-    }
-    function onDone(stats?: any) {
-      reconnectStatus.value = null
-      if (streamingContent.value || streamingSegments.value.length > 0) {
-        messages.value.push({ role: 'assistant', content: streamingContent.value, segments: [...streamingSegments.value] })
-      }
-      streamingContent.value = ''; streamingSegments.value = []; workflowState.value = null; isStreaming.value = false
-      if (stats) contextStats.value = stats
-      scrollToBottom(); startTitleRefresh(); resolve()
-    }
-    function onError(_error: any) {
-      if (attempt < maxRetries) {
-        reconnectStatus.value = { type: 'reconnecting', message: t('chat.reconnecting') + ` (${attempt + 1}/${maxRetries})...` }
-        setTimeout(async () => {
-          try { await sendWithRetry(sessionId, msg, attempt + 1); resolve() } catch (e) { reject(e) }
-        }, delays[attempt])
-      } else {
-        reconnectStatus.value = { type: 'error', message: t('chat.connectionLost') || 'Connection lost. Please try again.' }
-        isStreaming.value = false; streamingContent.value = ''; streamingSegments.value = []; workflowState.value = null
-        setTimeout(() => { reconnectStatus.value = null }, 5000)
-        reject(_error)
-      }
-    }
-  })
-}
+const pinSession = (_id: string) => { /* pin handled via localStorage in SessionList */ }
+const unpinSession = (_id: string) => { /* unpin handled via localStorage in SessionList */ }
 
 const handleChunk = (chunk: any) => {
   const type = chunk.type || 'text'
@@ -543,10 +455,24 @@ const handleChunk = (chunk: any) => {
     streamingSegments.value.push({ type: 'text' as const, content: '↩ ' + t('chat.agentSwitched', { name: displayName }) })
     if (workflowState.value && workflowState.value.mode === 'handoff') workflowState.value.activeNode = displayName
   } else if (type === 'tool_call') {
-    streamingSegments.value.push({ type: 'tool_call', content: text, toolName: chunk.toolName || 'tool' })
+    streamingSegments.value.push({ type: 'tool_call', content: text, toolName: chunk.toolName || 'tool', status: 'pending' })
   } else if (type === 'tool_result') {
-    streamingSegments.value.push({ type: 'tool_result', content: text, toolName: chunk.toolName || 'tool' })
+    const toolName = chunk.toolName || 'tool'
+    const pendingIdx = streamingSegments.value.findLastIndex(s => s.type === 'tool_call' && s.toolName === toolName && s.status === 'pending')
+    if (pendingIdx >= 0) {
+      const seg = streamingSegments.value[pendingIdx]
+      seg.status = 'done'
+      seg.resultContent = text
+    } else {
+      streamingSegments.value.push({ type: 'tool_result', content: text, toolName, status: 'done' })
+    }
   } else if (text) {
+    // Mark all pending tool_calls as done (backend ToolCallAdvisor handles results internally)
+    for (const seg of streamingSegments.value) {
+      if (seg.type === 'tool_call' && seg.status === 'pending') {
+        seg.status = 'done'
+      }
+    }
     const last = streamingSegments.value[streamingSegments.value.length - 1]
     if (last && last.type === 'text') last.content += text
     else streamingSegments.value.push({ type: 'text', content: text })
@@ -759,12 +685,12 @@ watch(messages, () => { nextTick(() => scrollToBottom()) }, { deep: true })
   transition: width 0.25s ease;
 }
 .chat-layout.dark .nav-bar { background: #1e1f22; }
-.nav-bar-header { padding: 14px 0 10px; display: flex; align-items: center; justify-content: center; gap: 10px; white-space: nowrap; overflow: hidden; }
+.nav-bar-header { padding: 10px 0 6px; display: flex; align-items: center; justify-content: center; gap: 10px; white-space: nowrap; overflow: hidden; }
 .nav-brand { font-size: 16px; font-weight: 700; color: var(--cc-text-primary); }
-.nav-version { font-size: 10px; color: var(--cc-text-tertiary, #999); text-align: center; margin-top: -4px; margin-bottom: 4px; letter-spacing: 0.5px; }
+.nav-version { font-size: 10px; color: var(--cc-text-tertiary, #999); text-align: center; margin-top: -2px; margin-bottom: 2px; letter-spacing: 0.5px; }
 .nav-bar.collapsed .nav-bar-header { justify-content: center; }
 .nav-logo { width: 32px; height: 32px; border-radius: 8px; flex-shrink: 0; }
-.nav-bar-menu { flex: 1; display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; overflow-y: auto; }
+.nav-bar-menu { display: flex; flex-direction: column; gap: 2px; padding: 4px 8px; }
 .nav-bar.collapsed .nav-bar-menu { align-items: center; padding: 4px 6px; }
 .nav-bar-item {
   height: 40px; border-radius: 8px; display: flex; align-items: center; gap: 10px;
@@ -809,7 +735,7 @@ watch(messages, () => { nextTick(() => scrollToBottom()) }, { deep: true })
 .messages-area::-webkit-scrollbar { width: 6px; }
 .messages-area::-webkit-scrollbar-thumb { background: var(--cc-border); border-radius: 3px; }
 .messages-inner { max-width: 820px; margin: 0 auto; padding: 20px 24px; }
-.welcome-wrapper { width: 100%; }
+.welcome-wrapper { width: 100%; display: flex; justify-content: center; align-items: center; min-height: calc(100vh - 120px); }
 
 /* ===== Streaming & Fade Animations ===== */
 @keyframes fadeIn { from { opacity: 0; } to { opacity: 1; } }
@@ -894,10 +820,12 @@ watch(messages, () => { nextTick(() => scrollToBottom()) }, { deep: true })
 /* ===== Responsive ===== */
 @media (max-width: 767px) {
   .nav-bar { display: none !important; }
-  .mobile-session-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.4); z-index: 199; }
-  .session-sidebar { position: fixed !important; top: 0; left: 0; bottom: 0; width: 280px !important; z-index: 200; border-right: 1px solid var(--cc-border) !important; transition: transform 0.25s ease; }
-  .session-sidebar.mobile-hidden { transform: translateX(-100%); display: flex !important; }
+  
+  .session-sidebar { position: fixed !important; top: 0; left: 0; bottom: 0; width: 280px !important; z-index: 1001; border-right: 1px solid var(--cc-border) !important; box-shadow: 4px 0 16px rgba(0,0,0,0.2); }
+  .session-sidebar.mobile-hidden { display: none !important; }
+  
   .content-container { width: 100% !important; }
+  aside.session-sidebar { position: fixed !important; flex: none !important; flex-shrink: 0 !important; flex-grow: 0 !important; flex-basis: auto !important; min-width: 0 !important; max-width: none !important; }
   .chat-header { padding: 0 12px !important; height: 48px !important; }
   .mobile-session-btn { display: flex !important; }
   .header-title { font-size: 14px; }
@@ -970,4 +898,87 @@ html, body { margin: 0; padding: 0; height: 100%; overflow: hidden; }
   border-left-color: #363637;
   color: #a3a6ad;
 }
+
+/* ===== Mobile sidebar (global, for teleported sidebar) ===== */
+@media (max-width: 767px) {
+  aside.session-sidebar {
+    position: fixed !important;
+    top: 0;
+    left: 0;
+    bottom: 56px;
+    width: 280px !important;
+    z-index: 1001;
+    border-right: 1px solid var(--cc-border) !important;
+    box-shadow: 4px 0 16px rgba(0,0,0,0.2);
+  }
+}
+
+/* New nav action button */
+.nav-bar-action-btn {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 16px; border-radius: 10px;
+  cursor: pointer; transition: all 0.15s;
+  color: var(--el-color-primary, #409eff);
+  font-weight: 500; font-size: 14px;
+  background: rgba(64,158,255,0.06);
+  margin: 4px 8px;
+}
+.nav-bar-action-btn:hover { background: rgba(64,158,255,0.12); }
+:global(.dark) .nav-bar-action-btn { background: rgba(51,112,255,0.12); }
+:global(.dark) .nav-bar-action-btn:hover { background: rgba(51,112,255,0.2); }
+
+/* Session list in nav */
+.nav-session-list {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  scrollbar-width: thin;
+  padding-top: 0;
+}
+.nav-session-list-collapsed { flex: 1; min-height: 0; overflow-y: auto; padding: 4px 0; }
+.collapsed-session { padding: 8px !important; justify-content: center; }
+
+/* Mobile session panel */
+.mobile-session-panel {
+  position: fixed; top: 0; left: 0; bottom: 0; width: 300px;
+  background: var(--cc-bg-primary, #fff); z-index: 1002;
+  border-right: 1px solid var(--el-border-color-lighter, #e4e7ed);
+  display: flex; flex-direction: column;
+  animation: slideIn 0.2s ease;
+}
+:global(.dark) .mobile-session-panel { background: #141414; border-right-color: #363637; }
+.mobile-session-header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 16px; font-weight: 600; font-size: 16px;
+  border-bottom: 1px solid var(--el-border-color-lighter, #e4e7ed);
+}
+@keyframes slideIn { from { transform: translateX(-100%); } to { transform: translateX(0); } }
+
+/* ===== Dark Mode ===== */
+.chat-layout.dark .nav-bar { background: #1e1f22; border-right-color: #2d2d2f; }
+.chat-layout.dark .nav-brand { color: #e5eaf3; }
+.chat-layout.dark .nav-version { color: #6b6b6b; }
+.chat-layout.dark .nav-bar-item { color: #b0b0b0; }
+.chat-layout.dark .nav-bar-item:hover { background: rgba(255,255,255,0.06); }
+.chat-layout.dark .nav-bar-item.active { background: rgba(51,112,255,0.15); color: #5b9aff; }
+.chat-layout.dark .nav-session-list { scrollbar-color: #444 transparent; }
+.chat-layout.dark .nav-bar-divider { background: rgba(255,255,255,0.08); }
+.chat-layout.dark .chat-header { background: #1a1a1a; border-bottom-color: #2d2d2f; }
+.chat-layout.dark .header-title { color: #e5eaf3; }
+.chat-layout.dark .messages-area { background: #0a0a0a; }
+.chat-layout.dark .welcome-wrapper { color: #b0b0b0; }
+.chat-layout.dark .input-area { background: #1a1a1a; border-top-color: #2d2d2f; }
+.chat-layout.dark .message-row.user .message-content { background: #1d2b45; color: #e5eaf3; }
+.chat-layout.dark .message-row.assistant .message-content { color: #cfd3dc; }
+.chat-layout.dark .message-meta { color: #8b8b8b; }
+.chat-layout.dark .agent-label { color: #8b8b8b; }
+.chat-layout.dark .typing-indicator span { background: #666; }
+.chat-layout.dark .tool-card { background: #1a1a1a; border-color: #2d2d2f; }
+.chat-layout.dark .tool-card-header { color: #cfd3dc; }
+.chat-layout.dark .workflow-event-text { color: #8b8b8b; }
+.chat-layout.dark .reconnect-banner { background: #1a1a1a; color: #cfd3dc; }
+.chat-layout.dark .locale-icon { color: #b0b0b0; }
+.chat-layout.dark .nav-session-list-collapsed .collapsed-session { color: #b0b0b0; }
+.chat-layout.dark .nav-session-list-collapsed .collapsed-session:hover { background: rgba(255,255,255,0.06); }
+.chat-layout.dark .nav-session-list-collapsed .collapsed-session.active { background: rgba(51,112,255,0.15); color: #5b9aff; }
 </style>

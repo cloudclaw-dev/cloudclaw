@@ -63,6 +63,11 @@ cloudclaw:
     session-ttl: 30m
     agent-ttl: 1h
     memory-ttl: 10m
+  debug:
+    enabled: false
+    max-result-length: 2000
+    max-prompt-length: 5000
+    auto-cleanup-days: 30
 
 logging:
   level:

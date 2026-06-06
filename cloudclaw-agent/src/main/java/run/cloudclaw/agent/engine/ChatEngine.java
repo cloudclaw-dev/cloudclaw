@@ -10,6 +10,8 @@ import run.cloudclaw.sandbox.core.SandboxContext;
 import run.cloudclaw.sandbox.core.SandboxBackend;
 import run.cloudclaw.sandbox.core.SandboxMode;
 import run.cloudclaw.agent.tools.MemoryTools;
+import run.cloudclaw.memory.injector.MemoryInjector;
+import run.cloudclaw.memory.injector.MemoryRefHolder;
 import run.cloudclaw.agent.prompt.PromptAssembler;
 import run.cloudclaw.common.dto.AsyncChatResult;
 import run.cloudclaw.common.dto.ChatChunk;
@@ -21,6 +23,9 @@ import run.cloudclaw.llm.service.LlmUsageService;
 import run.cloudclaw.agent.engine.SessionCompressor;
 import run.cloudclaw.agent.engine.ContextCompressor;
 import run.cloudclaw.session.service.SessionService;
+import run.cloudclaw.debug.context.TraceContext;
+import run.cloudclaw.debug.recorder.CustomSpanRecorder;
+import run.cloudclaw.debug.event.DebugEventBus;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
@@ -41,6 +46,7 @@ import reactor.core.publisher.Sinks;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.stream.Collectors;
 import java.util.UUID;
 
 /**
@@ -71,6 +77,7 @@ public class ChatEngine {
     private final AgentTransferService agentTransferService;
     private final WorkflowEngine workflowEngine;
     private final run.cloudclaw.memory.service.TokenEstimator tokenEstimator;
+    private final DebugEventBus debugEventBus;
 
     public ChatEngine(LlmRouteService llmRouteService,
                       SessionService sessionService,
@@ -86,7 +93,8 @@ public class ChatEngine {
                       run.cloudclaw.memory.injector.MemoryInjector memoryInjector,
                       AgentTransferService agentTransferService,
                       WorkflowEngine workflowEngine,
-                      run.cloudclaw.memory.service.TokenEstimator tokenEstimator) {
+                      run.cloudclaw.memory.service.TokenEstimator tokenEstimator,
+                      DebugEventBus debugEventBus) {
         this.llmRouteService = llmRouteService;
         this.sessionService = sessionService;
         this.agentConfigService = agentConfigService;
@@ -102,6 +110,7 @@ public class ChatEngine {
         this.agentTransferService = agentTransferService;
         this.workflowEngine = workflowEngine;
         this.tokenEstimator = tokenEstimator;
+        this.debugEventBus = debugEventBus;
     }
 
     /**
@@ -122,6 +131,10 @@ public class ChatEngine {
         // 3. Load agent config
         AgentConfig config = agentConfigService.getAgentConfig(session.getAgentId().toString());
 
+        // 3.0 Set debug trace context (business context for observation handler)
+        String agentIdStr = session.getAgentId() != null ? session.getAgentId().toString() : null;
+        TraceContext.set(sessionId, agentIdStr, userId, config.getModelId());
+
         // 3.1 Workflow dispatch: if agent has a workflow configured, delegate to WorkflowEngine
         if (workflowEngine.hasWorkflow(config)) {
             log.info("Agent {} has workflow mode={}, delegating to WorkflowEngine",
@@ -134,12 +147,12 @@ public class ChatEngine {
             sessionService.saveMessage(userMsg);
 
             // Log user prompt
-            String agentIdStr = config.getAgentId() != null ? config.getAgentId().toString() : "unknown";
-            promptLogService.logAsync(sessionId, agentIdStr, userId,
+            String workflowAgentIdStr = config.getAgentId() != null ? config.getAgentId().toString() : "unknown";
+            promptLogService.logAsync(sessionId, workflowAgentIdStr, userId,
                     config.getModelId(), "user", userMessage,
                     estimateTokens(userMessage), null, null);
             if (config.getSystemPrompt() != null && !config.getSystemPrompt().isEmpty()) {
-                promptLogService.logAsync(sessionId, agentIdStr, userId,
+                promptLogService.logAsync(sessionId, workflowAgentIdStr, userId,
                         config.getModelId(), "system", config.getSystemPrompt(),
                         estimateTokens(config.getSystemPrompt()), null, null);
             }
@@ -187,8 +200,13 @@ public class ChatEngine {
         ResolvedAgent activeAgent = agentTransferService.resolveAgent(config, activePath);
 
         // 4. Assemble system prompt (base prompt + skills + memory)
-        String systemPrompt = promptAssembler.assembleSystemPrompt(
-                config, userId, sessionId, userMessage);
+        final String[] promptHolder = new String[1];
+        CustomSpanRecorder.record("PROMPT_ASSEMBLE", () -> {
+            promptHolder[0] = promptAssembler.assembleSystemPrompt(
+                    config, userId, sessionId, userMessage);
+            return java.util.Map.of("promptLength", promptHolder[0].length());
+        });
+        String systemPrompt = promptHolder[0];
 
         // Override system prompt if we're in a sub-agent
         if (!activeAgent.isRoot() && activeAgent.getSystemPrompt() != null) {
@@ -201,7 +219,12 @@ public class ChatEngine {
 
         // 4.5 Dynamic context compression: trim history if exceeding token budget
         int contextWindow = config.getContextWindow() != null ? config.getContextWindow() : 128000;
-        List<Message> history = contextCompressor.compress(rawHistory, systemPrompt, userMessage, contextWindow, config.getContextUsageThreshold());
+        int rawCount = rawHistory.size();
+        List<Message> compressed = contextCompressor.compress(rawHistory, systemPrompt, userMessage, contextWindow, config.getContextUsageThreshold());
+        CustomSpanRecorder.record("CONTEXT_COMPRESS", () ->
+                java.util.Map.of("rawCount", rawCount, "compressedCount", compressed.size())
+        );
+        List<Message> history = compressed;
 
         // 5. Save user message
         Message userMsg = new Message();
@@ -217,7 +240,6 @@ public class ChatEngine {
         log.info("Resolved modelId={} for agent={} (activePath={})", effectiveModelId, config.getAgentId(), activePath);
 
         // 6.5 Set memory tools context for this request
-        String agentIdStr = session.getAgentId() != null ? session.getAgentId().toString() : null;
         MemoryTools.setContext(userId, agentIdStr, sessionId, config.getMemoryProfileMaxTokens(), config.getMemoryTaskMaxTokens());
 
         // 6.6 Set sandbox tool context if sandbox is enabled
@@ -298,6 +320,8 @@ public class ChatEngine {
         // Track transfer tool results via returnDirect mechanism
         final java.util.concurrent.atomic.AtomicReference<AgentTransferService.TransferInfo> transferRef =
                 new java.util.concurrent.atomic.AtomicReference<>(null);
+        final java.util.concurrent.atomic.AtomicInteger toolCallCountRef = new java.util.concurrent.atomic.AtomicInteger(0);
+        final java.util.concurrent.atomic.AtomicInteger toolResultCharsRef = new java.util.concurrent.atomic.AtomicInteger(0);
         final String finalActivePath = activePath;
         final String finalEffectiveSystemPrompt = effectiveSystemPrompt;
 
@@ -343,6 +367,7 @@ public class ChatEngine {
                             if (output.hasToolCalls()) {
                                 var toolCalls = output.getToolCalls();
                                 if (!toolCalls.isEmpty()) {
+                                    toolCallCountRef.incrementAndGet();
                                     var tc = toolCalls.get(0);
                                     String toolName = tc.name();
                                     String args = tc.arguments() != null ? tc.arguments() : "";
@@ -425,12 +450,14 @@ public class ChatEngine {
                                             transferInfo.getTargetPath(), history,
                                             () -> finishChat(sink, sessionId, userId, config, userMessage, history,
                                                     finalEffectiveSystemPrompt, fullResponse, chatClient,
-                                                    effectiveModelId, agentIdStr, createdMcpClients, startTime));
+                                                    effectiveModelId, agentIdStr, createdMcpClients, startTime,
+                                                    toolCallCountRef.get(), toolResultCharsRef.get() / 4));
                                 } catch (Exception e) {
                                     log.error("Failed to invoke agent transfer: {}", e.getMessage(), e);
                                     finishChat(sink, sessionId, userId, config, userMessage, history,
                                             finalEffectiveSystemPrompt, fullResponse, chatClient,
-                                            effectiveModelId, agentIdStr, createdMcpClients, startTime);
+                                            effectiveModelId, agentIdStr, createdMcpClients, startTime,
+                                            toolCallCountRef.get(), toolResultCharsRef.get() / 4);
                                 }
 
                             } else {
@@ -447,13 +474,16 @@ public class ChatEngine {
 
                                 finishChat(sink, sessionId, userId, config, userMessage, history,
                                         finalEffectiveSystemPrompt, fullResponse, chatClient,
-                                        effectiveModelId, agentIdStr, createdMcpClients, startTime);
+                                        effectiveModelId, agentIdStr, createdMcpClients, startTime,
+                                        toolCallCountRef.get(), toolResultCharsRef.get() / 4);
                             }
                         })
                         .doFinally(signal -> {
                             toolResolutionService.closeMcpClients(createdMcpClients);
                             MemoryTools.clearContext(sessionId);
                             SandboxContext.clear();
+                            TraceContext.clear();
+                            debugEventBus.unsubscribe(sessionId);
                             ReactiveContextHelper.unbindAll();
                         })
                         .subscribe();
@@ -620,7 +650,8 @@ public class ChatEngine {
                             AgentConfig config, String userMessage, List<Message> history,
                             String systemPrompt, StringBuilder fullResponse, ChatClient chatClient,
                             String modelId, String agentIdStr,
-                            List<McpSyncClient> createdMcpClients, long startTime) {
+                            List<McpSyncClient> createdMcpClients, long startTime,
+                            int toolCallCount, int toolResultTokensEstimate) {
         try {
             int approxTokensIn = estimateTokens(userMessage)
                     + history.stream().mapToInt(m -> estimateTokens(m.getContent())).sum()
@@ -663,21 +694,33 @@ public class ChatEngine {
         ChatChunk.ContextStats stats = ChatChunk.ContextStats.builder()
                 .totalTokens(totalTokens)
                 .historyMessages(history.size() + 2)
-                .toolCallCount(0)
+                .toolCallCount(toolCallCount)
                 .maxTokens(maxContextTokens)
                 .usagePercent(Math.min(usagePercent, 100))
                 .systemTokens(sysTokens)
                 .historyTokens(histTokens)
                 .memoryTokens(0)
                 .userMessageTokens(userTokens)
-                .toolResultTokens(0)
+                .toolResultTokens(toolResultTokensEstimate)
                 .build();
+
+        // Collect memory references from prompt assembly and convert to ChatChunk.MemoryRef
+        java.util.List<run.cloudclaw.memory.injector.MemoryContext.Ref> rawRefs = MemoryRefHolder.get();
+        MemoryRefHolder.clear();
+        java.util.List<ChatChunk.MemoryRef> memRefs = null;
+        if (rawRefs != null && !rawRefs.isEmpty()) {
+            memRefs = rawRefs.stream()
+                .map(r -> ChatChunk.MemoryRef.builder()
+                    .type(r.getType()).itemId(r.getItemId()).content(r.getContent()).build())
+                .collect(java.util.stream.Collectors.toList());
+        }
 
         ReactiveContextHelper.safeEmitNext(sink, ChatChunk.builder()
                 .content("")
                 .toolCall(false)
                 .done(true)
                 .contextStats(stats)
+                .memoryRefs(memRefs.isEmpty() ? null : memRefs)
                 .build());
         sink.tryEmitComplete();
     }
@@ -1020,8 +1063,11 @@ public class ChatEngine {
         CompletableFuture.runAsync(() -> {
             try {
                 String truncatedMessage = userMessage.substring(0, Math.min(userMessage.length(), 100));
-                String titlePrompt = "Generate a short title (max 6 words) for a conversation that starts with: \""
-                        + truncatedMessage + "\". Reply with ONLY the title, no quotes.";
+                // Detect language from the message content
+                boolean hasChinese = truncatedMessage.chars().anyMatch(c -> Character.UnicodeScript.of(c) == Character.UnicodeScript.HAN);
+                String titlePrompt = hasChinese
+                        ? "请为以下对话生成一个简短的标题（最多8个字）。只输出标题，不加引号。对话开头：\"" + truncatedMessage + "\""
+                        : "Generate a short title (max 6 words) for a conversation that starts with: \"" + truncatedMessage + "\". Reply with ONLY the title, no quotes.";
 
                 String title = chatClient.prompt()
                         .user(titlePrompt)

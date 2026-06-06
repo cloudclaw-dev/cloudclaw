@@ -13,7 +13,7 @@
 
     <groupId>run.cloudclaw</groupId>
     <artifactId>cloudclaw</artifactId>
-    <version>1.0.4</version>
+    <version>1.0.5</version>
     <packaging>pom</packaging>
     <name>CloudClaw</name>
     <description>Enterprise-grade open source AI Agent platform</description>
@@ -31,6 +31,7 @@
         <module>cloudclaw-admin</module>
         <module>cloudclaw-user</module>
         <module>cloudclaw-standalone</module>
+        <module>cloudclaw-debug</module>
         <module>cloudclaw-sandbox</module>
         <module>cloudclaw-app</module>
         <module>cloudclaw-release</module>
@@ -119,6 +120,11 @@
             <dependency>
                 <groupId>run.cloudclaw</groupId>
                 <artifactId>cloudclaw-sandbox</artifactId>
+                <version>${project.version}</version>
+            </dependency>
+            <dependency>
+                <groupId>run.cloudclaw</groupId>
+                <artifactId>cloudclaw-debug</artifactId>
                 <version>${project.version}</version>
             </dependency>
 

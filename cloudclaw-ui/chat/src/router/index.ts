@@ -9,18 +9,25 @@ const router = createRouter({
       component: () => import('@/views/ChatLayout.vue'),
       meta: { requiresAuth: true },
       children: [
-        // Chat is the default view embedded in ChatLayout
         { path: '', name: 'ChatHome', component: { template: '<span/>' }, meta: { title: 'nav.chat' } },
+        { path: 'agents', name: 'AgentGallery', component: () => import('@/views/AgentGallery.vue'), meta: { title: 'nav.agentGallery' } },
         { path: 'memory', name: 'Memory', component: () => import('@/views/MemoryPanel.vue'), meta: { title: 'Memory', requiresAuth: true } },
-        // Admin routes
-        { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/Dashboard.vue'), meta: { title: 'dashboard.title', requiresAdmin: true } },
-        { path: 'users', name: 'Users', component: () => import('@/views/UserManage.vue'), meta: { title: 'nav.user', requiresAdmin: true } },
-        { path: 'agents', name: 'Agents', component: () => import('@/views/AgentManage.vue'), meta: { title: 'nav.agent', requiresAdmin: true } },
-        { path: 'mcp-servers', name: 'McpServers', component: () => import('@/views/McpServerManage.vue'), meta: { title: 'MCP Server', requiresAdmin: true } },
-        { path: 'skills', name: 'Skills', component: () => import('@/views/SkillManage.vue'), meta: { title: 'nav.skill', requiresAdmin: true } },
-        { path: 'llm', name: 'Llm', component: () => import('@/views/LlmManage.vue'), meta: { title: 'nav.llm', requiresAdmin: true } },
-        { path: 'sandboxes', name: 'Sandboxes', component: () => import('@/views/SandboxManage.vue'), meta: { title: '\u6C99\u7BB1\u7BA1\u7406', requiresAdmin: true } },
-        { path: 'monitor', name: 'Monitor', component: () => import('@/views/SystemMonitor.vue'), meta: { title: 'nav.monitor', requiresAdmin: true } }
+      ]
+    },
+    {
+      path: '/admin',
+      component: () => import('@/views/AdminLayout.vue'),
+      meta: { requiresAuth: true, requiresAdmin: true },
+      children: [
+        { path: '', redirect: '/admin/dashboard' },
+        { path: 'dashboard', name: 'Dashboard', component: () => import('@/views/Dashboard.vue'), meta: { title: 'dashboard.title' } },
+        { path: 'agents', name: 'Agents', component: () => import('@/views/AgentManage.vue'), meta: { title: 'nav.agent' } },
+        { path: 'mcp', name: 'McpServers', component: () => import('@/views/McpServerManage.vue'), meta: { title: 'MCP Server' } },
+        { path: 'skills', name: 'Skills', component: () => import('@/views/SkillManage.vue'), meta: { title: 'nav.skill' } },
+        { path: 'llm', name: 'Llm', component: () => import('@/views/LlmManage.vue'), meta: { title: 'nav.llm' } },
+        { path: 'users', name: 'Users', component: () => import('@/views/UserManage.vue'), meta: { title: 'nav.user' } },
+        { path: 'sandboxes', name: 'Sandboxes', component: () => import('@/views/SandboxManage.vue'), meta: { title: 'Sandbox' } },
+        { path: 'monitor', name: 'Monitor', component: () => import('@/views/SystemMonitor.vue'), meta: { title: 'nav.monitor' } },
       ]
     }
   ]
@@ -36,14 +43,12 @@ router.beforeEach(async (to, _from, next) => {
     next()
     return
   }
-  // Check if token is still valid by trying a lightweight API call
   if (token && to.meta.requiresAuth) {
     try {
       const res = await fetch('/api/v1/agents', {
         headers: { 'Authorization': `Bearer ${token}` }
       })
       if (res.status === 401) {
-        // Try refresh
         const refreshToken = localStorage.getItem('refresh_token')
         if (refreshToken) {
           try {
@@ -66,7 +71,6 @@ router.beforeEach(async (to, _from, next) => {
             }
           } catch {}
         }
-        // Both tokens expired
         localStorage.removeItem('access_token')
         localStorage.removeItem('refresh_token')
         next('/login')
@@ -77,8 +81,16 @@ router.beforeEach(async (to, _from, next) => {
     }
   }
   if (to.meta.requiresAdmin) {
-    const role = localStorage.getItem('user_role')
-    if (role !== 'ADMIN') {
+    const token = localStorage.getItem('access_token')
+    let role: string | null = null
+    if (token) {
+      try {
+        const base64 = token.split('.')[1].replace(/-/g, '+').replace(/_/g, '/')
+        const jsonPayload = decodeURIComponent(atob(base64).split('').map((ch: string) => '%' + ('00' + ch.charCodeAt(0).toString(16)).slice(-2)).join(''))
+        role = JSON.parse(jsonPayload).role || null
+      } catch { /* invalid token */ }
+    }
+    if (role !== 'admin') {
       next('/')
       return
     }

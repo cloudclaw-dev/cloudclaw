@@ -20,7 +20,42 @@
         <el-input v-model="search" :placeholder="$t('common.search')" style="width: 300px" clearable>
           <template #prefix><el-icon><Search /></el-icon></template>
         </el-input>
+        <div class="view-toggle">
+          <el-button-group>
+            <el-button :type="viewMode === 'card' ? 'primary' : 'default'" @click="viewMode = 'card'"><el-icon><Grid /></el-icon></el-button>
+            <el-button :type="viewMode === 'list' ? 'primary' : 'default'" @click="viewMode = 'list'"><el-icon><List /></el-icon></el-button>
+          </el-button-group>
+        </div>
       </div>
+
+    <!-- Card View -->
+    <div v-if="viewMode === 'card' && !isMobile" class="item-card-grid">
+      <div v-for="item in filteredData" :key="item.id" class="item-card" @click="openDialog(item)">
+        <div class="item-card-top">
+          <div class="item-card-icon"><el-icon :size="24"><Connection /></el-icon></div>
+          <div class="item-card-main">
+            <div class="item-card-name">{{ item.name }}</div>
+            <div class="item-card-desc" v-if="item.description">{{ item.description }}</div>
+          </div>
+        </div>
+        <div class="item-card-meta">
+          <el-tag size="small">{{ item.transport }}</el-tag>
+          <span class="item-card-meta-right">{{ item.url }}</span>
+        </div>
+        <div class="item-card-footer">
+          <el-switch v-model="item.enabled" @click.stop @change="handleToggle(item)" size="small" />
+          <div class="item-card-actions">
+            <el-button link type="success" size="small" @click.stop="handleTest(item)" :loading="item._testing">{{ $t('mcp.testConnection') }}</el-button>
+            <el-button link type="primary" size="small" @click.stop="openDialog(item)">{{ $t('common.edit') }}</el-button>
+            <el-popconfirm :title="$t('common.deleteConfirm')" @confirm="handleDelete(item.id)">
+              <template #reference><el-button link type="danger" size="small" @click.stop>{{ $t('common.delete') }}</el-button></template>
+            </el-popconfirm>
+          </div>
+        </div>
+      </div>
+      <div v-if="filteredData.length === 0" class="item-card-empty">{{ $t('common.noData') }}</div>
+    </div>
+
     <!-- Mobile Card List -->
     <div class="mobile-card-list" v-if="isMobile">
       <el-card v-for="item in filteredData" :key="item.id" shadow="hover">
@@ -43,7 +78,7 @@
       <div v-if="filteredData.length === 0" style="text-align:center;padding:40px;color:var(--cc-text-muted)">{{ $t('common.noData') }}</div>
     </div>
 
-          <el-table :data="filteredData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
+          <el-table v-if="viewMode === 'list' || isMobile" :data="filteredData" :class="{ 'mobile-hide': isMobile }" v-loading="loading" stripe>
         <el-table-column prop="name" :label="$t('common.name')" width="160" />
         <el-table-column prop="description" :label="$t('common.description')" show-overflow-tooltip />
         <el-table-column prop="transport" :label="$t('mcp.transport')" width="130" />
@@ -87,7 +122,7 @@
 import { ref, reactive, computed, onMounted } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
-import { Connection, Plus, Search } from '@element-plus/icons-vue'
+import { Connection, Plus, Search, Grid, List } from '@element-plus/icons-vue'
 import { getMcpServers, createMcpServer, updateMcpServer, deleteMcpServer, testMcpServer } from '@/api/admin'
 import '@/assets/admin.css'
 import { useMobile } from '@/composables/useMobile'
@@ -102,6 +137,7 @@ const isEdit = ref(false)
 const editId = ref('')
 const { isMobile } = useMobile()
 const search = ref('')
+const viewMode = ref<'card' | 'list'>('card')
 const formRef = ref<FormInstance>()
 
 const defaultForm = { name: '', url: '', transport: 'sse', description: '', headers: '' }
@@ -178,4 +214,86 @@ onMounted(loadData)
 </script>
 
 <style scoped>
+
+/* View Toggle */
+.view-toggle { margin-left: auto; }
+.admin-table-toolbar { display: flex; align-items: center; gap: 12px; }
+
+/* Card Grid */
+.item-card-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 16px;
+  padding: 0 0 20px;
+}
+.item-card {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 20px;
+  border-radius: 12px;
+  border: 1px solid var(--el-border-color-lighter, #e4e7ed);
+  background: var(--el-bg-color, #fff);
+  cursor: pointer;
+  transition: all 0.2s;
+}
+.item-card:hover {
+  border-color: var(--el-color-primary, #409eff);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.08);
+  transform: translateY(-2px);
+}
+:global(.dark) .item-card {
+  background: #1d1e1f;
+  border-color: #363637;
+}
+:global(.dark) .item-card:hover {
+  border-color: #3370ff;
+  background: #1a2a44;
+}
+.item-card-top {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+}
+.item-card-icon {
+  width: 40px; height: 40px; border-radius: 10px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(64,158,255,0.08);
+  color: var(--el-color-primary, #409eff);
+  flex-shrink: 0;
+}
+:global(.dark) .item-card-icon {
+  background: rgba(51,112,255,0.15);
+}
+.item-card-main { flex: 1; min-width: 0; }
+.item-card-name {
+  font-size: 15px; font-weight: 600;
+  color: var(--el-text-color-primary, #303133);
+  margin-bottom: 4px;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.item-card-desc {
+  font-size: 12px; color: var(--el-text-color-secondary, #909399);
+  line-height: 1.4;
+  display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+}
+.item-card-meta {
+  display: flex; align-items: center; gap: 8px; flex-wrap: wrap;
+}
+.item-card-meta-right { margin-left: auto; font-size: 12px; color: var(--el-text-color-secondary, #909399); }
+.item-card-footer {
+  display: flex; align-items: center; justify-content: space-between;
+  padding-top: 8px;
+  border-top: 1px solid var(--el-border-color-lighter, #e4e7ed);
+}
+:global(.dark) .item-card-footer { border-top-color: #363637; }
+.item-card-actions { display: flex; gap: 4px; }
+.item-card-empty {
+  grid-column: 1 / -1; text-align: center; padding: 60px 0;
+  color: var(--el-text-color-secondary, #909399);
+}
+
+@media (max-width: 767px) {
+  .item-card-grid { grid-template-columns: 1fr; }
+}
 </style>

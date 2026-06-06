@@ -63,25 +63,44 @@ public class ChatChunk {
     private String errorI18nKey;
     /** Error detail message (for error events) */
     private String errorDetail;
+    /** Debug event data (only in debug mode) */
+    private java.util.Map<String, Object> debugEvent;
+
+    /** Memory references injected into this conversation turn (only in done chunk) */
+    private java.util.List<MemoryRef> memoryRefs;
+
+    /**
+     * A reference to a memory item that was used in the conversation.
+     */
+    @Getter
+    @Setter
+    @Builder
+    @NoArgsConstructor
+    @AllArgsConstructor
+    public static class MemoryRef {
+        private String type;
+        private String itemId;
+        private String content;
+    }
 
     public static ChatChunk text(String content) {
         return new ChatChunk(content, false, false, "text", null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ChatChunk toolCall(String toolName, String args) {
         return new ChatChunk(args, true, false, "tool_call", toolName, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ChatChunk toolResult(String toolName, String result) {
         return new ChatChunk(result, true, false, "tool_result", toolName, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     public static ChatChunk done() {
         return new ChatChunk(null, false, true, "done", null, null, null, null, null, null,
-                null, null, null, null, null, null, null, null, null, null);
+                null, null, null, null, null, null, null, null, null, null, null, null);
     }
 
     /** Create an error event chunk with structured error information for SSE. */
@@ -202,6 +221,18 @@ public class ChatChunk {
                 .from(from)
                 .targetAgent(to)
                 .reason(reason)
+                .build();
+    }
+
+
+    /** Create a debug event chunk (only emitted when debug mode is enabled). */
+    public static ChatChunk debug(java.util.Map<String, Object> event) {
+        return ChatChunk.builder()
+                .content("")
+                .toolCall(false)
+                .done(false)
+                .type("debug")
+                .debugEvent(event)
                 .build();
     }
 
