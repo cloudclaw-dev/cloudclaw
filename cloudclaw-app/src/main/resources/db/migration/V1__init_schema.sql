@@ -337,43 +337,43 @@ ON CONFLICT (id) DO NOTHING;
 
 -- 1. Handoff: 客服接力
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sub_agents, workflow_mode, workflow, created_by, enabled) VALUES
-('a0000001-0000-0000-0000-000000000001', '客服接力', '多轮客服转接系统', '你是客服前台，了解用户需求后转接给合适的客服。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, 1, 1000, 2000,
+('a0000001-0000-0000-0000-000000000001', '客服接力', '多轮客服转接系统', '你是客服前台，了解用户需求后转接给合适的客服。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000,
  '[{"name":"reception","displayName":"前台接待","systemPrompt":"你是前台接待。技术问题转技术客服，退款转售后客服。","modelId":"glm-5.1"},{"name":"tech_support","displayName":"技术客服","systemPrompt":"你是技术客服，解决技术问题。","modelId":"glm-5.1"},{"name":"after_sales","displayName":"售后客服","systemPrompt":"你是售后客服，处理退款和售后问题。","modelId":"glm-5.1"}]',
  'handoff',
  '{"mode":"handoff","nodes":[{"id":"node_1","name":"reception","display_name":"前台接待","description":"","system_prompt":"你是前台接待。技术问题转技术客服，退款转售后客服。","model_id":"glm-5.1"},{"id":"node_2","name":"tech_support","display_name":"技术客服","description":"","system_prompt":"你是技术客服，解决技术问题。","model_id":"glm-5.1"},{"id":"node_3","name":"after_sales","display_name":"售后客服","description":"","system_prompt":"你是售后客服，处理退款和售后问题。","model_id":"glm-5.1"}],"handoff_config":{"auto_return":false}}',
- '00000000-0000-0000-0000-000000000001', 1);
+ '00000000-0000-0000-0000-000000000001', true);
 
 -- 2. Pipeline: 翻译流水线
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sub_agents, workflow_mode, workflow, created_by, enabled) VALUES
-('a0000002-0000-0000-0000-000000000002', '翻译流水线', '先翻译再审校的流水线', '翻译系统', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, 1, 1000, 2000,
+('a0000002-0000-0000-0000-000000000002', '翻译流水线', '先翻译再审校的流水线', '翻译系统', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000,
  '[{"name":"translator","displayName":"翻译器","systemPrompt":"将用户输入翻译成英文，只输出翻译结果。","modelId":"glm-5.1"},{"name":"reviewer","displayName":"审校","systemPrompt":"检查并优化翻译，只输出最终翻译。","modelId":"glm-5.1"}]',
  'pipeline',
  '{"mode":"pipeline","nodes":[{"id":"node_1","name":"translator","display_name":"翻译器","description":"","system_prompt":"将用户输入翻译成英文，只输出翻译结果。","model_id":"glm-5.1"},{"id":"node_2","name":"reviewer","display_name":"审校","description":"","system_prompt":"检查并优化翻译，只输出最终翻译。","model_id":"glm-5.1"}],"pipeline_config":{"passthrough_mode":"replace"}}',
- '00000000-0000-0000-0000-000000000001', 1);
+ '00000000-0000-0000-0000-000000000001', true);
 
 -- 3. Router: 智能路由
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sub_agents, workflow_mode, workflow, created_by, enabled) VALUES
-('a0000003-0000-0000-0000-000000000003', '智能路由', '根据问题路由到最合适的专家', '根据问题选择最合适的专家来回答。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, 1, 1000, 2000,
+('a0000003-0000-0000-0000-000000000003', '智能路由', '根据问题路由到最合适的专家', '根据问题选择最合适的专家来回答。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000,
  '[{"name":"math_expert","displayName":"数学专家","description":"擅长数学问题","systemPrompt":"你是数学专家。","modelId":"glm-5.1"},{"name":"history_expert","displayName":"历史专家","description":"擅长历史问题","systemPrompt":"你是历史专家。","modelId":"glm-5.1"},{"name":"science_expert","displayName":"科学专家","description":"擅长科学问题","systemPrompt":"你是科学专家。","modelId":"glm-5.1"}]',
  'router',
  '{"mode":"router","nodes":[{"id":"node_1","name":"math_expert","display_name":"数学专家","description":"擅长数学问题","system_prompt":"你是数学专家。","model_id":"glm-5.1"},{"id":"node_2","name":"history_expert","display_name":"历史专家","description":"擅长历史问题","system_prompt":"你是历史专家。","model_id":"glm-5.1"},{"id":"node_3","name":"science_expert","display_name":"科学专家","description":"擅长科学问题","system_prompt":"你是科学专家。","model_id":"glm-5.1"}],"router_config":{"allow_fallback":true}}',
- '00000000-0000-0000-0000-000000000001', 1);
+ '00000000-0000-0000-0000-000000000001', true);
 
 -- 4. Supervisor: 代码审查主管
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sub_agents, workflow_mode, workflow, created_by, enabled) VALUES
-('a0000004-0000-0000-0000-000000000004', '代码审查主管', '协调多审查员审查代码', '协调多个审查员审查代码。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, 1, 1000, 2000,
+('a0000004-0000-0000-0000-000000000004', '代码审查主管', '协调多审查员审查代码', '协调多个审查员审查代码。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000,
  '[{"name":"security_reviewer","displayName":"安全审查员","systemPrompt":"你是安全审查专家，专注发现安全漏洞。","modelId":"glm-5.1"},{"name":"perf_reviewer","displayName":"性能审查员","systemPrompt":"你是性能优化专家，专注发现性能问题。","modelId":"glm-5.1"}]',
  'supervisor',
  '{"mode":"supervisor","nodes":[{"id":"node_1","name":"security_reviewer","display_name":"安全审查员","description":"","system_prompt":"你是安全审查专家，专注发现安全漏洞。","model_id":"glm-5.1"},{"id":"node_2","name":"perf_reviewer","display_name":"性能审查员","description":"","system_prompt":"你是性能优化专家，专注发现性能问题。","model_id":"glm-5.1"}],"supervisor_config":{"max_iterations":3}}',
- '00000000-0000-0000-0000-000000000001', 1);
+ '00000000-0000-0000-0000-000000000001', true);
 
 -- 5. Parallel: 多角度分析
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sub_agents, workflow_mode, workflow, created_by, enabled) VALUES
-('a0000005-0000-0000-0000-000000000005', '多角度分析', '从多个角度并行分析问题', '从多个角度分析用户的问题。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, 1, 1000, 2000,
+('a0000005-0000-0000-0000-000000000005', '多角度分析', '从多个角度并行分析问题', '从多个角度分析用户的问题。', 'glm-5.1', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000,
  '[{"name":"optimist","displayName":"乐观派","systemPrompt":"你总是从积极乐观的角度分析问题，看到好的一面。","modelId":"glm-5.1"},{"name":"pessimist","displayName":"悲观派","systemPrompt":"你总是从风险和问题的角度分析事情，指出潜在隐患。","modelId":"glm-5.1"},{"name":"realist","displayName":"现实派","systemPrompt":"你从客观中立的角度分析问题，给出务实的建议。","modelId":"glm-5.1"}]',
  'parallel',
  '{"mode":"parallel","nodes":[{"id":"node_1","name":"optimist","display_name":"乐观派","description":"","system_prompt":"你总是从积极乐观的角度分析问题，看到好的一面。","model_id":"glm-5.1"},{"id":"node_2","name":"pessimist","display_name":"悲观派","description":"","system_prompt":"你总是从风险和问题的角度分析事情，指出潜在隐患。","model_id":"glm-5.1"},{"id":"node_3","name":"realist","display_name":"现实派","description":"","system_prompt":"你从客观中立的角度分析问题，给出务实的建议。","model_id":"glm-5.1"}],"parallel_config":{"merge_strategy":"summarize","max_concurrent":5}}',
- '00000000-0000-0000-0000-000000000001', 1);
+ '00000000-0000-0000-0000-000000000001', true);
 
 -- Debug: chat trace table
 CREATE TABLE IF NOT EXISTS chat_trace (

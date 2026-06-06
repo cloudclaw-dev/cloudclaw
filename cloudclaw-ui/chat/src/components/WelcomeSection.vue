@@ -2,17 +2,21 @@
   <div class="welcome-section" :class="{ dark: isDark }">
     <div class="welcome-icon"><el-icon :size="48"><Promotion /></el-icon></div>
     <h2>{{ t('dashboard.welcomeTitle') }}</h2>
-    <p>{{ t('chat.newChat') }}</p>
-    <!-- Suggested Prompts -->
-    <div class="suggested-prompts">
-      <div v-for="(prompt, i) in suggestions" :key="i" class="prompt-card" @click="$emit('startWithPrompt', prompt.text)">
-        <div class="prompt-icon">{{ prompt.icon }}</div>
-        <div class="prompt-content">
-          <div class="prompt-title">{{ prompt.title }}</div>
-          <div class="prompt-desc">{{ prompt.text }}</div>
+    <p>选择一个助手开始对话</p>
+
+    <!-- Agent cards (top 4 by usage) -->
+    <div class="agent-cards" v-if="topAgents.length > 0">
+      <div v-for="item in topAgents" :key="item.agent.id" class="agent-card" @click="$emit('selectAgent', item.agent)">
+        <div class="agent-avatar">{{ getAgentEmoji(item.agent) }}</div>
+        <div class="agent-info">
+          <div class="agent-name">{{ item.agent.name }}</div>
+          <div class="agent-desc">{{ item.agent.description || t('chat.newChat') }}</div>
         </div>
+        <span v-if="item.count > 0" class="agent-count">{{ item.count }}次</span>
+        <el-icon class="agent-arrow"><ArrowRight /></el-icon>
       </div>
     </div>
+
     <el-button type="primary" size="large" @click="$emit('newSession')">
       <el-icon><Plus /></el-icon> {{ t('chat.newSession') }}
     </el-button>
@@ -20,24 +24,60 @@
 </template>
 
 <script setup lang="ts">
-import { ref, inject } from 'vue'
-import { Plus, Promotion } from '@element-plus/icons-vue'
+import { ref, computed, inject, watch } from 'vue'
+import { Plus, Promotion, ArrowRight } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 
-const emit = defineEmits<{
+interface Agent { id: string; name: string; description?: string }
+interface Session { id: string; agentId?: string }
+
+const props = defineProps<{
+  agents: Agent[]
+  sessions: Session[]
+}>()
+
+defineEmits<{
   (e: 'newSession'): void
+  (e: 'selectAgent', agent: Agent): void
   (e: 'startWithPrompt', text: string): void
 }>()
 
 const { t } = useI18n()
 const isDark = inject('isDark', ref(false))
 
-const suggestions = [
-  { icon: '\u270b', title: t('chat.promptGreeting'), text: t('chat.promptGreetingText') },
-  { icon: '\u270d\ufe0f', title: t('chat.promptWriting'), text: t('chat.promptWritingText') },
-  { icon: '\u{1f4bb}', title: t('chat.promptCode'), text: t('chat.promptCodeText') },
-  { icon: '\u{1f4ca}', title: t('chat.promptAnalysis'), text: t('chat.promptAnalysisText') },
-]
+// Count sessions per agent, sort by usage desc, take top 4
+const topAgents = computed(() => {
+  const countMap = new Map<string, number>()
+  for (const s of props.sessions) {
+    const aid = s.agentId
+    if (aid) {
+      countMap.set(aid, (countMap.get(aid) || 0) + 1)
+    }
+  }
+  return [...props.agents]
+    .map(a => ({ agent: a, count: countMap.get(a.id) || 0 }))
+    .sort((a, b) => b.count - a.count)
+    .slice(0, 4)
+})
+
+const getAgentEmoji = (agent: Agent) => {
+  const name = (agent.name || '').toLowerCase()
+  if (/翻译|translat/.test(name)) return '🌐'
+  if (/代码|code|dev|开发/.test(name)) return '💻'
+  if (/客服|support|售后/.test(name)) return '🎧'
+  if (/旅游|travel|trip/.test(name)) return '🗺️'
+  if (/数学|math/.test(name)) return '🔢'
+  if (/历史|history/.test(name)) return '📜'
+  if (/科学|science/.test(name)) return '🔬'
+  if (/安全|security/.test(name)) return '🔒'
+  if (/性能|perf/.test(name)) return '⚡'
+  if (/乐观|optimist/.test(name)) return '😊'
+  if (/悲观|pessimist/.test(name)) return '🤔'
+  if (/现实|realist/.test(name)) return '🎯'
+  if (/高德|amap|地图/.test(name)) return '📍'
+  if (/助手|assistant|default/.test(name)) return '🤖'
+  return '🤖'
+}
 </script>
 
 <style scoped>
@@ -49,7 +89,7 @@ const suggestions = [
   text-align: center;
   padding: 40px 20px;
   min-height: calc(100vh - 56px - 80px);
-  max-width: 600px;
+  max-width: 520px;
   margin: 0 auto;
   color: var(--cc-text-secondary, #646a73);
 }
@@ -65,48 +105,73 @@ const suggestions = [
 }
 .welcome-section p { font-size: 14px; margin-bottom: 24px; }
 
-.suggested-prompts {
-  display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 12px;
-  max-width: 500px;
+.agent-cards {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
   margin: 0 auto 24px;
 }
-.prompt-card {
+.agent-card {
   display: flex;
-  align-items: flex-start;
-  gap: 10px;
-  padding: 14px;
-  border-radius: 12px;
-  border: 1px solid var(--cc-border, #e8eaed);
+  align-items: center;
+  gap: 12px;
+  padding: 14px 16px;
+  border-radius: 10px;
+  background: var(--cc-bg-primary, #fff);
   cursor: pointer;
   text-align: left;
   transition: all 0.2s;
 }
-.welcome-section.dark .prompt-card {
-  border-color: #363637;
+.agent-card:hover {
+  background: var(--cc-bg-tertiary, #eef0f4);
 }
-.prompt-card:hover {
-  border-color: var(--cc-accent, #3370ff);
-  box-shadow: 0 2px 8px rgba(51,112,255,0.1);
+.welcome-section.dark .agent-card { background: #1d1e1f; }
+.welcome-section.dark .agent-card:hover { background: #262627; }
+
+.agent-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 8px;
+  background: var(--cc-bg-tertiary, #eef0f4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
 }
-.prompt-icon { font-size: 20px; flex-shrink: 0; }
-.prompt-content { flex: 1; min-width: 0; }
-.prompt-title {
-  font-size: 13px;
+.welcome-section.dark .agent-avatar { background: #2a2b2d; }
+
+.agent-info { flex: 1; min-width: 0; }
+.agent-name {
+  font-size: 14px;
   font-weight: 600;
   color: var(--cc-text-primary, #1f2329);
   margin-bottom: 2px;
 }
-.prompt-desc {
+.agent-desc {
   font-size: 12px;
   color: var(--cc-text-muted, #8f959e);
-  white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+  white-space: nowrap;
+}
+.agent-count {
+  font-size: 11px;
+  color: var(--cc-accent, #3370ff);
+  background: var(--cc-accent-light, #e8f0ff);
+  padding: 2px 8px;
+  border-radius: 8px;
+  flex-shrink: 0;
+}
+html.dark .agent-count { background: rgba(51,112,255,0.15); }
+.agent-arrow {
+  color: var(--cc-text-muted, #8f959e);
+  flex-shrink: 0;
 }
 
 @media (max-width: 767px) {
-  .suggested-prompts { grid-template-columns: 1fr; }
+  .agent-cards { gap: 6px; }
+  .agent-card { padding: 12px 14px; }
 }
 </style>

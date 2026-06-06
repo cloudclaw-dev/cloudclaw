@@ -149,6 +149,9 @@ public class Agent {
     @Transient
     private java.util.List<String> skillIds;
 
+    @Transient
+    private Long sessionCount;
+
     @PrePersist
     protected void onCreate() {
         if (createdAt == null) {

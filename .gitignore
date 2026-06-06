@@ -25,3 +25,4 @@ startup_stdout.log
 startup_stderr.log
 dist/
 Dockerfile.simple
+cloudclaw-ui/chat/dist/

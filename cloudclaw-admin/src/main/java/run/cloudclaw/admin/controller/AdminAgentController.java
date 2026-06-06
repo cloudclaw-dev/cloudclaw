@@ -126,6 +126,17 @@ public class AdminAgentController {
         List<Agent> agents = agentRepository.findAll();
         agents.forEach(this::populateBindings);
         agents.forEach(this::filterResponse);
+
+        // Populate session counts
+        List<Object[]> counts = adminSessionRepository.countByAgentId();
+        java.util.Map<String, Long> countMap = new java.util.HashMap<>();
+        for (Object[] row : counts) {
+            countMap.put(String.valueOf(row[0]), (Long) row[1]);
+        }
+        for (Agent agent : agents) {
+            agent.setSessionCount(countMap.getOrDefault(agent.getId().toString(), 0L));
+        }
+
         return Result.ok(agents);
     }
 

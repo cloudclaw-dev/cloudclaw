@@ -275,7 +275,7 @@
 /* ===== Dark Mode Comprehensive Audit (Sprint 2.6) ===== */
 
 /* Reduce card shadow in dark mode */
-.dark .admin-page-header {
+html.dark .admin-page-header {
   box-shadow: 0 1px 2px rgba(0,0,0,0.2);
 }
 .dark .admin-card {
@@ -286,7 +286,7 @@
 }
 
 /* Dark mode table adjustments */
-.dark .admin-page :deep(.el-table) {
+html.dark .admin-page :deep(.el-table) {
   --el-table-bg-color: var(--cc-bg-primary, #1d1e1f);
   --el-table-tr-bg-color: var(--cc-bg-primary, #1d1e1f);
   --el-table-header-bg-color: var(--cc-bg-tertiary, #262627);
@@ -297,97 +297,97 @@
 }
 
 /* Dark mode dialog adjustments */
-.dark .admin-page :deep(.el-dialog) {
+html.dark .admin-page :deep(.el-dialog) {
   --el-dialog-bg-color: var(--cc-bg-primary, #1d1e1f);
   --el-dialog-title-font-size: 16px;
 }
-.dark .admin-page :deep(.el-dialog__header) {
+html.dark .admin-page :deep(.el-dialog__header) {
   border-bottom: 1px solid var(--cc-border, #363637);
 }
-.dark .admin-page :deep(.el-dialog__body) {
+html.dark .admin-page :deep(.el-dialog__body) {
   color: var(--cc-text-primary, #e5eaf3);
 }
 
 /* Dark mode input/select/form */
-.dark .admin-page :deep(.el-input__wrapper) {
+html.dark .admin-page :deep(.el-input__wrapper) {
   background: var(--cc-bg-secondary, #141414);
   box-shadow: 0 0 0 1px var(--cc-border, #363637) inset;
 }
-.dark .admin-page :deep(.el-textarea__inner) {
+html.dark .admin-page :deep(.el-textarea__inner) {
   background: var(--cc-bg-secondary, #141414);
   border-color: var(--cc-border, #363637);
   color: var(--cc-text-primary, #e5eaf3);
 }
-.dark .admin-page :deep(.el-select__wrapper) {
+html.dark .admin-page :deep(.el-select__wrapper) {
   background: var(--cc-bg-secondary, #141414);
   box-shadow: 0 0 0 1px var(--cc-border, #363637) inset;
 }
-.dark .admin-page :deep(.el-form-item__label) {
+html.dark .admin-page :deep(.el-form-item__label) {
   color: var(--cc-text-secondary, #a3a6ad);
 }
 
 /* Dark mode tag adjustments */
-.dark .admin-page :deep(.el-tag) {
+html.dark .admin-page :deep(.el-tag) {
   border-color: var(--cc-border, #363637);
 }
 
 /* Dark mode card hover effect */
-.dark .stat-card:hover {
+html.dark .stat-card:hover {
   box-shadow: 0 2px 8px rgba(0,0,0,0.3);
 }
 
 /* Dark mode pagination */
-.dark .admin-page :deep(.el-pagination) {
+html.dark .admin-page :deep(.el-pagination) {
   --el-pagination-bg-color: transparent;
   --el-pagination-text-color: var(--cc-text-secondary, #a3a6ad);
   --el-pagination-button-bg-color: var(--cc-bg-tertiary, #262627);
 }
 
 /* Dark mode tabs (for Agent form sectioning) */
-.dark .admin-page :deep(.el-tabs__item) {
+html.dark .admin-page :deep(.el-tabs__item) {
   color: var(--cc-text-secondary, #a3a6ad);
 }
-.dark .admin-page :deep(.el-tabs__item.is-active) {
+html.dark .admin-page :deep(.el-tabs__item.is-active) {
   color: var(--cc-accent, #3370ff);
 }
-.dark .admin-page :deep(.el-tabs__nav-wrap::after) {
+html.dark .admin-page :deep(.el-tabs__nav-wrap::after) {
   background-color: var(--cc-border, #363637);
 }
 
 /* ===== Dark Mode: Mobile Card List ===== */
-.dark .mobile-card-title {
+html.dark .mobile-card-title {
   color: #e5eaf3;
 }
-.dark .mobile-card-meta {
+html.dark .mobile-card-meta {
   color: #a3a6ad;
 }
-.dark .mobile-card-desc {
+html.dark .mobile-card-desc {
   color: #636569;
 }
-.dark .mobile-card-actions {
+html.dark .mobile-card-actions {
   border-top-color: #363637;
 }
-.dark .mobile-section-tab {
+html.dark .mobile-section-tab {
   color: #a3a6ad;
 }
-.dark .mobile-section-tab.active {
+html.dark .mobile-section-tab.active {
   color: #fff;
   background: #3370ff;
 }
 
 /* ===== Dark Mode: System Monitor ===== */
-.dark .admin-page :deep(.el-descriptions__label) {
+html.dark .admin-page :deep(.el-descriptions__label) {
   color: var(--cc-text-secondary, #a3a6ad);
 }
-.dark .admin-page :deep(.el-descriptions__content) {
+html.dark .admin-page :deep(.el-descriptions__content) {
   color: var(--cc-text-primary, #e5eaf3);
 }
-.dark .admin-page :deep(.el-timeline-item__content) {
+html.dark .admin-page :deep(.el-timeline-item__content) {
   color: var(--cc-text-primary, #e5eaf3);
 }
-.dark .admin-page :deep(.el-timeline-item__timestamp) {
+html.dark .admin-page :deep(.el-timeline-item__timestamp) {
   color: var(--cc-text-muted, #636569);
 }
-.dark .admin-page :deep(.el-empty__description p) {
+html.dark .admin-page :deep(.el-empty__description p) {
   color: var(--cc-text-muted, #636569);
 }

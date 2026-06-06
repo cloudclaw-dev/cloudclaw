@@ -31,6 +31,16 @@ CloudClaw is an enterprise-grade AI Agent platform that makes deploying multi-ag
 - 🔌 **Pluggable everything** — Memory engines, message queues, LLM providers, MCP servers are all replaceable
 - 🤖 **5 orchestration modes** — Pipeline, Parallel, Router, Supervisor, Handoff out of the box
 
+
+## 🏗️ Architecture Overview
+
+<div align="center">
+  <img src="docs/architecture.svg" alt="CloudClaw Architecture" width="800" />
+</div>
+
+> Enterprise developers build Digital Employees (Agents) on CloudClaw, then all company employees use them as services.
+
+
 ## 🎯 CloudClaw vs OpenClaw
 
 CloudClaw and [OpenClaw](https://github.com/openclaw/openclaw) are complementary projects:
@@ -121,7 +131,7 @@ spring:
 
 All modes support per-node model, system prompt, MCP servers, and skills.
 
-## 🏗️ Architecture
+## 📂 Module Structure
 
 ```
 cloudclaw

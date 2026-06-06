@@ -301,7 +301,7 @@ INSERT INTO users (id, username, password, role, enabled) VALUES
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, created_by, enabled) VALUES
     ('00000000-0000-0000-0000-000000000001', 'Default Assistant', 'A general-purpose AI assistant',
      'You are CloudClaw AI Assistant, a helpful, harmless, and honest AI. You assist users with their questions and tasks. Be concise and accurate.',
-     'gpt-4o', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000, '00000000-0000-0000-0000-000000000001', true);
+     'glm-4', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000, '00000000-0000-0000-0000-000000000001', true);
 
 -- Sandbox Agent
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sandbox_enabled, sandbox_backend, sandbox_mode, created_by, enabled) VALUES

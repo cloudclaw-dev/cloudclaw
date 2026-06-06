@@ -63,6 +63,8 @@ public class SecurityConfig {
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
                         // Auth endpoints: public access
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/auth/**").permitAll()
+                        // Admin stats info: public read (version, mode)
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/admin/stats/info").permitAll()
                         // Admin POST endpoints: require ADMIN role
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/admin/**").hasRole("ADMIN")
                         // Admin GET/PUT/DELETE endpoints: require ADMIN role

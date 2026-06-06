@@ -46,7 +46,7 @@
         <!-- Bottom section -->
         <div class="nav-bar-bottom">
           <div class="nav-bar-divider" />
-          <div class="nav-bar-item" :class="{ active: $route.path === '/memory' }" @click="$router.push({ path: '/memory', query: { agentId: selectedAgentId } })" :title="navCollapsed ? t('nav.memory') : ''">
+          <div class="nav-bar-item" :class="{ active: $route.path === '/memory' }" @click="$router.push('/memory')" :title="navCollapsed ? t('nav.memory') : ''">
             <el-icon :size="20"><Memo /></el-icon>
             <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ $t('nav.memory') }}</span>
           </div>
@@ -77,7 +77,7 @@
       <!-- Content Area -->
       <el-container class="content-container">
         <el-container class="chat-container" @click="isMobile && showMobileSessions ? showMobileSessions = false : null">
-          <el-header class="chat-header" height="56px">
+          <el-header v-if="!isSubPage" class="chat-header" height="56px">
             <div class="chat-header-info">
               <el-button v-if="isMobile" :icon="Operation" circle size="small" text class="mobile-session-btn" @click.stop="showMobileSessions = !showMobileSessions" />
               <el-icon v-if="!isMobile" :size="18" class="chat-header-icon-text"><ChatLineSquare /></el-icon>
@@ -87,9 +87,11 @@
           </el-header>
           <el-main class="messages-area" ref="messagesAreaRef">
             <div class="messages-inner">
+              <template v-if="isSubPage"><router-view /></template>
+              <template v-else>
               <transition name="fade" mode="out-in">
                 <div v-if="!currentSessionId" key="welcome" class="welcome-wrapper">
-                  <WelcomeSection @newSession="showNewSessionDialog = true" @startWithPrompt="startWithPrompt" />
+                  <WelcomeSection :agents="agents" :sessions="sessions" @newSession="showNewSessionDialog = true" @selectAgent="startChatWithAgent" @startWithPrompt="startWithPrompt" />
                 </div>
                 <div v-else key="messages" class="messages-transition">
                   <SkeletonScreen v-if="loadingMessages" type="message" :count="3" />
@@ -163,9 +165,11 @@
                   </div>
                 </div>
               </transition>
+            </template>
             </div>
           </el-main>
           <ChatInput
+            v-if="!isSubPage"
             v-model="inputMessage"
             :isStreaming="isStreaming"
             :contextStats="contextStats"
@@ -221,7 +225,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted, nextTick, watch, provide } from 'vue'
-import { useRouter } from 'vue-router'
+import { useRouter, useRoute } from 'vue-router'
 import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound, ChatLineSquare, Memo, Sunny, Moon, SwitchButton, Fold,
@@ -232,6 +236,7 @@ import { renderMarkdown, md } from '@/utils/markdown'
 import api from '@/api/index'
 import { sessionApi, messageApi, agentApi, sendChatMessage } from '@/api/chat'
 import { useI18n } from 'vue-i18n'
+import { useTheme } from '@/utils/theme'
 import SessionList from '@/components/SessionList.vue'
 import NewChatDialog from '@/components/NewChatDialog.vue'
 import MessageBubble from '@/components/MessageBubble.vue'
@@ -258,11 +263,12 @@ interface WorkflowState { mode: string; steps: WorkflowStepStatus[]; activeNode:
 
 // ===== State =====
 const router = useRouter()
-const isDark = ref(false)
+const route = useRoute()
+const isSubPage = computed(() => ['/memory', '/agents'].includes(route.path))
 const navCollapsed = ref(false)
 const agents = ref<Agent[]>([])
 const sessions = ref<Session[]>([])
-const systemVersion = ref('1.0.5-SNAPSHOT')
+const systemVersion = ref('')
 const systemMode = ref('standalone')
 const currentSessionId = ref('')
 const messages = ref<Message[]>([])
@@ -289,6 +295,7 @@ const isMobile = ref(false)
 const showUserMenu = ref(false)
 
 const { t, locale } = useI18n()
+const { isDark, toggleDark } = useTheme()
 
 // Provide isDark for child components via inject
 provide('isDark', isDark)
@@ -322,11 +329,6 @@ const currentSessionTitle = computed(() => {
 
 // ===== Locale & Theme =====
 const toggleLocale = () => { locale.value = locale.value === 'zh' ? 'en' : 'zh'; localStorage.setItem('cloudclaw-locale', locale.value) }
-const toggleDark = () => {
-  isDark.value = !isDark.value
-  document.documentElement.classList.toggle('dark', isDark.value)
-  localStorage.setItem('theme', isDark.value ? 'dark' : 'light')
-}
 
 // ===== Data Loading =====
 const loadAgents = async () => {
@@ -374,6 +376,7 @@ const handleSelectSession = (id: string) => {
   messages.value = []; streamingContent.value = ''; streamingSegments.value = []; workflowState.value = null; activeAgentName.value = ''
   currentSessionId.value = id
   if (isMobile.value) showMobileSessions.value = false
+  if (route.path !== '/') router.push('/')
   loadMessages(id)
 }
 
@@ -481,6 +484,58 @@ const handleChunk = (chunk: any) => {
   scrollToBottom()
 }
 
+// ===== SSE Send with Retry =====
+const sendWithRetryFn = (sessionId: string, message: string, retries = 2): Promise<void> => {
+  return new Promise((resolve, reject) => {
+    const attempt = (n: number) => {
+      const controller = new AbortController()
+      abortController = controller
+      let collectedContent = ''
+      let collectedSegments: MessageSegment[] = []
+
+      sendChatMessage(
+        sessionId,
+        message,
+        (chunk) => { handleChunk(chunk) },
+        (contextStats) => {
+          if (contextStats) contextStats.value = contextStats
+          isStreaming.value = false
+          if (streamingContent.value || streamingSegments.value.length > 0) {
+            messages.value.push({
+              role: 'assistant',
+              content: streamingContent.value,
+              segments: [...streamingSegments.value],
+              createdAt: new Date().toISOString()
+            })
+          }
+          streamingContent.value = ''
+          streamingSegments.value = []
+          workflowState.value = null
+          startTitleRefresh()
+          resolve()
+        },
+        (error: any) => {
+          if (error?.name === 'AbortError') { resolve(); return }
+          if (n > 0) {
+            reconnectStatus.value = { type: 'reconnecting', message: t('chat.reconnecting') || 'Reconnecting...' }
+            setTimeout(() => attempt(n - 1), 1500)
+          } else {
+            isStreaming.value = false
+            streamingContent.value = ''
+            streamingSegments.value = []
+            workflowState.value = null
+            reconnectStatus.value = { type: 'error', message: t('chat.connectionLost') || 'Connection lost' }
+            ElMessage.error(t('chat.responseFailed') || 'Failed to get response')
+            reject(error)
+          }
+        },
+        controller.signal
+      )
+    }
+    attempt(retries)
+  })
+}
+
 // ===== Send Message =====
 const sendMessage = async () => {
   const msg = inputMessage.value.trim()
@@ -532,7 +587,7 @@ const sendMessage = async () => {
     } catch (error) { isStreaming.value = false; streamingContent.value = ''; ElMessage.error(t('chat.responseFailed')) }
     return
   }
-  try { await sendWithRetry(currentSessionId.value, msg) } catch (error) { /* handled in retry */ }
+  try { await sendWithRetryFn(currentSessionId.value, msg) } catch (error) { /* handled in retry */ }
 }
 
 // ===== Regenerate & Edit =====
@@ -605,8 +660,7 @@ const handleClickOutside = (e: MouseEvent) => {
   if (!(e.target as HTMLElement).closest('.nav-bar-user')) showUserMenu.value = false
 }
 onMounted(async () => {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme === 'dark') { isDark.value = true; document.documentElement.classList.add('dark') }
+
   checkMobile(); window.addEventListener('resize', checkMobile)
   document.addEventListener('click', handleClickOutside)
   await loadAgents(); await loadSessions()
@@ -634,35 +688,7 @@ watch(messages, () => { nextTick(() => scrollToBottom()) }, { deep: true })
 </script>
 
 <style scoped>
-.chat-layout {
-  --cc-bg-primary: #ffffff;
-  --cc-bg-secondary: #f7f8fa;
-  --cc-bg-tertiary: #eef0f4;
-  --cc-text-primary: #1f2329;
-  --cc-text-secondary: #646a73;
-  --cc-text-muted: #8f959e;
-  --cc-border: #e8eaed;
-  --cc-shadow: 0 1px 3px rgba(0,0,0,0.06);
-  --cc-radius: 10px;
-  --cc-radius-sm: 6px;
-  --cc-accent: #3370ff;
-  --cc-accent-light: #e8f0ff;
-  --cc-accent-hover: #2860e1;
-  --cc-success: #34c759;
-  --cc-warning: #ff9500;
-  --cc-danger: #ff3b30;
-}
-.chat-layout.dark {
-  --cc-bg-primary: #1d1e1f;
-  --cc-bg-secondary: #141414;
-  --cc-bg-tertiary: #262627;
-  --cc-text-primary: #e5eaf3;
-  --cc-text-secondary: #a3a6ad;
-  --cc-text-muted: #636569;
-  --cc-border: #363637;
-  --cc-shadow: 0 1px 3px rgba(0,0,0,0.3);
-  --cc-accent-light: #1a2a44;
-}
+
 .chat-layout {
   position: relative;
   height: 100vh;

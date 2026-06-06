@@ -1,0 +1,33 @@
+/* ===== CloudClaw Global CSS Variables ===== */
+/* Light mode defaults */
+:root {
+  --cc-bg-primary: #ffffff;
+  --cc-bg-secondary: #f7f8fa;
+  --cc-bg-tertiary: #eef0f4;
+  --cc-text-primary: #1f2329;
+  --cc-text-secondary: #646a73;
+  --cc-text-muted: #8f959e;
+  --cc-border: #e8eaed;
+  --cc-shadow: 0 1px 3px rgba(0,0,0,0.06);
+  --cc-radius: 10px;
+  --cc-radius-sm: 6px;
+  --cc-accent: #3370ff;
+  --cc-accent-light: #e8f0ff;
+  --cc-accent-hover: #2860e1;
+  --cc-success: #34c759;
+  --cc-warning: #ff9500;
+  --cc-danger: #ff3b30;
+}
+
+/* Dark mode overrides */
+html.dark {
+  --cc-bg-primary: #1d1e1f;
+  --cc-bg-secondary: #141414;
+  --cc-bg-tertiary: #262627;
+  --cc-text-primary: #e5eaf3;
+  --cc-text-secondary: #a3a6ad;
+  --cc-text-muted: #636569;
+  --cc-border: #363637;
+  --cc-shadow: 0 1px 3px rgba(0,0,0,0.3);
+  --cc-accent-light: #1a2a44;
+}

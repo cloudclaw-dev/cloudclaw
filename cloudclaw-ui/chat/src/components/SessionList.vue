@@ -17,7 +17,7 @@
              :class="{ active: currentSessionId === s.id }"
              @click="$emit('selectSession', s.id)"
              @contextmenu.prevent="showContextMenu($event, s)">
-          <span class="session-title">{{ s.title || t('chat.newChat') }}</span>
+          <el-icon class="session-icon" :size="14"><ChatDotRound /></el-icon><span class="session-title">{{ s.title || t('chat.newChat') }}</span>
           <span v-if="getAgentTag(s)" class="session-agent-tag" :style="{ background: getAgentColor(s) }">{{ getAgentTag(s) }}</span>
           <el-button :icon="Delete" circle size="small" text class="session-delete" @click.stop="$emit('deleteSession', s.id)" />
         </div>
@@ -31,7 +31,7 @@
              :class="{ active: currentSessionId === s.id }"
              @click="$emit('selectSession', s.id)"
              @contextmenu.prevent="showContextMenu($event, s)">
-          <span class="session-title">{{ s.title || t('chat.newChat') }}</span>
+          <el-icon class="session-icon" :size="14"><ChatDotRound /></el-icon><span class="session-title">{{ s.title || t('chat.newChat') }}</span>
           <span v-if="getAgentTag(s)" class="session-agent-tag" :style="{ background: getAgentColor(s) }">{{ getAgentTag(s) }}</span>
           <el-button :icon="Delete" circle size="small" text class="session-delete" @click.stop="$emit('deleteSession', s.id)" />
         </div>
@@ -45,7 +45,7 @@
              :class="{ active: currentSessionId === s.id }"
              @click="$emit('selectSession', s.id)"
              @contextmenu.prevent="showContextMenu($event, s)">
-          <span class="session-title">{{ s.title || t('chat.newChat') }}</span>
+          <el-icon class="session-icon" :size="14"><ChatDotRound /></el-icon><span class="session-title">{{ s.title || t('chat.newChat') }}</span>
           <span v-if="getAgentTag(s)" class="session-agent-tag" :style="{ background: getAgentColor(s) }">{{ getAgentTag(s) }}</span>
           <el-button :icon="Delete" circle size="small" text class="session-delete" @click.stop="$emit('deleteSession', s.id)" />
         </div>
@@ -59,7 +59,7 @@
              :class="{ active: currentSessionId === s.id }"
              @click="$emit('selectSession', s.id)"
              @contextmenu.prevent="showContextMenu($event, s)">
-          <span class="session-title">{{ s.title || t('chat.newChat') }}</span>
+          <el-icon class="session-icon" :size="14"><ChatDotRound /></el-icon><span class="session-title">{{ s.title || t('chat.newChat') }}</span>
           <span v-if="getAgentTag(s)" class="session-agent-tag" :style="{ background: getAgentColor(s) }">{{ getAgentTag(s) }}</span>
           <el-button :icon="Delete" circle size="small" text class="session-delete" @click.stop="$emit('deleteSession', s.id)" />
         </div>
@@ -90,7 +90,7 @@
 
 <script setup lang="ts">
 import { ref, computed, onMounted, onUnmounted } from 'vue'
-import { Delete, Search } from '@element-plus/icons-vue'
+import { Delete, Search, ChatDotRound } from '@element-plus/icons-vue'
 import { useI18n } from 'vue-i18n'
 
 interface Session {
@@ -156,7 +156,7 @@ const getAgentTag = (session: Session) => {
   if (!agent) return ''
   // If there's only one agent, no need for tags
   if (props.agents.length <= 1) return ''
-  return agent.name.length > 4 ? agent.name.substring(0, 4) : agent.name
+  return agent.name
 }
 
 // Filtering
@@ -274,6 +274,11 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
 :global(.dark) .session-item:hover { background: rgba(255,255,255,0.06); }
 :global(.dark) .session-item.active { background: rgba(51,112,255,0.15); }
 
+.session-icon {
+  flex-shrink: 0;
+  color: var(--cc-text-muted, #8f959e);
+  margin-right: 2px;
+}
 .session-title {
   flex: 1;
   font-size: 12px;
@@ -290,7 +295,7 @@ onUnmounted(() => document.removeEventListener('click', handleClickOutside))
   border-radius: 4px;
   flex-shrink: 0;
   line-height: 1.4;
-  max-width: 60px;
+  max-width: 80px;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;

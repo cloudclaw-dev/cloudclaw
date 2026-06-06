@@ -64,6 +64,7 @@ import { ref, reactive, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 import { ElMessage } from 'element-plus'
 import { useI18n } from 'vue-i18n'
+import { useTheme } from '@/utils/theme'
 import type { FormInstance, FormRules } from 'element-plus'
 import { authApi } from '@/api/chat'
 
@@ -71,7 +72,7 @@ const router = useRouter()
 const { t } = useI18n()
 const loginFormRef = ref<FormInstance>()
 const loading = ref(false)
-const isDark = ref(false)
+
 
 const loginForm = reactive({
   username: '',
@@ -89,14 +90,8 @@ const loginRules: FormRules = {
   ]
 }
 
-const toggleTheme = (val: boolean) => {
-  if (val) {
-    document.documentElement.classList.add('dark')
-  } else {
-    document.documentElement.classList.remove('dark')
-  }
-  localStorage.setItem('theme', val ? 'dark' : 'light')
-}
+const { isDark, toggleDark } = useTheme()
+const toggleTheme = (val: boolean) => { isDark.value = val }
 
 const handleLogin = async () => {
   if (!loginFormRef.value) return
@@ -146,11 +141,7 @@ const handleLogin = async () => {
 }
 
 onMounted(() => {
-  const savedTheme = localStorage.getItem('theme')
-  if (savedTheme === 'dark') {
-    isDark.value = true
-    document.documentElement.classList.add('dark')
-  }
+  // theme initialized by useTheme
 })
 </script>
 

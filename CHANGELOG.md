@@ -25,6 +25,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Skeleton Screens** — `SkeletonScreen.vue` component for loading placeholders (sessions, messages)
 - **Workflow Panel** — `WorkflowPanel.vue` for real-time multi-agent orchestration status visualization
 - **Thinking Support** — `ThinkingDisabledConnector` to handle models that don't support thinking/reasoning tokens
+- **Memory Page Redesign** — Complete UI overhaul of the Memory panel:
+  - Removed admin-page style; immersive full-screen layout with capsule stats bar
+  - Dual-column layout (Profile + Session Memory), responsive stacking on mobile
+  - Profile items as rounded cards with hover-reveal edit/delete buttons
+  - Session memories grouped by session with timeline layout (collapsible groups)
+  - Auto-categorization tags (Preference/Fact/Task/Context) with colored dots
+  - Inline SVG empty-state illustrations with dark mode support
+- **Session List Enhancement** — Added chat bubble icon before each session title; Agent name tags now display full names instead of truncated 4-character labels
+- **Global Theme Composable** — New `utils/theme.ts` module-level singleton for dark mode state, shared across ChatLayout/AdminLayout/Login
+- **CSS Variables System** — `assets/variables.css` with `:root` and `html.dark` variables for unified theming
 
 ### Changed
 
@@ -40,6 +50,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 - **Duplicate `EditPen` import** — Vue compiler error caused by adding icon name twice in the import block
 - **Missing `Plus` import** — Restored after icon change to prevent mobile session button breakage
+- **Chat send button not working** — `sendWithRetry` function was undefined (never defined or imported), causing `ReferenceError` silently caught by catch block; added `sendWithRetryFn` wrapping `sendChatMessage` for SSE streaming with retry logic
+- **Default agent model misconfiguration** — Changed default agent's `model_id` from `gpt-4o` (OpenAI, no credential) to `glm-4` (ZhipuAI, has valid API key) in V1 seed SQL
+- **AdminLayout navigation inconsistency** — Unified nav bar width (200→260px), class names, and CSS values to match ChatLayout
 
 ## [1.0.4] - 2026-05-31
 
