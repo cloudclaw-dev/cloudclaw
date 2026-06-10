@@ -10,7 +10,7 @@ Built with Spring Boot · Spring AI · Vue 3
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
 
-[🌐 Website](https://cloudclaw.run) · [📖 Documentation](https://cloudclaw.run) · [💬 Discussions](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 Issues](https://github.com/cloudclaw-dev/cloudclaw/issues)
+[🌐 Website](https://cloudclaw.run) · [📖 Documentation](https://cloudclaw.run) · [🎮 Demo](https://demo.cloudclaw.run) · [💬 Discussions](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 Issues](https://github.com/cloudclaw-dev/cloudclaw/issues)
 
 **English** · [中文](README_CN.md)
 

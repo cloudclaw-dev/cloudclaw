@@ -10,7 +10,7 @@
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
 
-[🌐 官网](https://cloudclaw.run) · [📖 文档](https://cloudclaw.run) · [💬 讨论](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 问题](https://github.com/cloudclaw-dev/cloudclaw/issues)
+[🌐 官网](https://cloudclaw.run) · [📖 文档](https://cloudclaw.run) · [🎮 Demo](https://demo.cloudclaw.run) · [💬 讨论](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 问题](https://github.com/cloudclaw-dev/cloudclaw/issues)
 
 **[English](README.md)** · **中文**
 
