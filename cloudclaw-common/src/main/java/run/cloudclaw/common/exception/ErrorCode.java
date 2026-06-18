@@ -53,6 +53,9 @@ public enum ErrorCode {
     AUTH_TOKEN_EXPIRED(6003, "auth.tokenExpired"),
     AUTH_INVALID_TOKEN(6004, "auth.invalidToken"),
     AUTH_RATE_LIMITED(6005, "auth.rateLimited"),
+    AUTH_USERNAME_EXISTS(6006, "auth.usernameExists"),
+    AUTH_EMAIL_EXISTS(6007, "auth.emailExists"),
+    AUTH_REGISTRATION_DISABLED(6008, "auth.registrationDisabled"),
 
     // Skill 7xxx
     SKILL_NOT_FOUND(7001, "skill.notFound"),
@@ -67,6 +70,14 @@ public enum ErrorCode {
     FILE_NOT_FOUND(9001, "file.notFound"),
     FILE_ALREADY_EXISTS(9002, "file.alreadyExists"),
     FILE_INVALID_FORMAT(9003, "file.invalidFormat"),
+
+    // Channel 11xxx
+    CHANNEL_NOT_CONFIGURED(11001, "channel.notConfigured"),
+    CHANNEL_DISABLED(11002, "channel.disabled"),
+    CHANNEL_OAUTH_FAILED(11003, "channel.oauthFailed"),
+    CHANNEL_ALREADY_BOUND(11004, "channel.alreadyBound"),
+    CHANNEL_BINDING_NOT_FOUND(11005, "channel.bindingNotFound"),
+    CHANNEL_ALREADY_EXISTS(11006, "channel.alreadyExists"),
 
     // Security 10xxx
     DECRYPTION_FAILED(10001, "security.decryptionFailed");

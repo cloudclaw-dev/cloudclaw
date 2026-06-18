@@ -4,6 +4,7 @@ const router = createRouter({
   history: createWebHistory('/'),
   routes: [
     { path: '/login', name: 'Login', component: () => import('@/views/Login.vue') },
+    { path: '/register', name: 'Register', component: () => import('@/views/Register.vue') },
     {
       path: '/',
       component: () => import('@/views/ChatLayout.vue'),
@@ -12,6 +13,7 @@ const router = createRouter({
         { path: '', name: 'ChatHome', component: { template: '<span/>' }, meta: { title: 'nav.chat' } },
         { path: 'agents', name: 'AgentGallery', component: () => import('@/views/AgentGallery.vue'), meta: { title: 'nav.agentGallery' } },
         { path: 'memory', name: 'Memory', component: () => import('@/views/MemoryPanel.vue'), meta: { title: 'Memory', requiresAuth: true } },
+        { path: 'profile', name: 'Profile', component: () => import('@/views/Profile.vue'), meta: { title: 'nav.profile', requiresAuth: true } },
       ]
     },
     {
@@ -28,6 +30,7 @@ const router = createRouter({
         { path: 'users', name: 'Users', component: () => import('@/views/UserManage.vue'), meta: { title: 'nav.user' } },
         { path: 'sandboxes', name: 'Sandboxes', component: () => import('@/views/SandboxManage.vue'), meta: { title: 'Sandbox' } },
         { path: 'monitor', name: 'Monitor', component: () => import('@/views/SystemMonitor.vue'), meta: { title: 'nav.monitor' } },
+        { path: 'channel', name: 'ChannelConfig', component: () => import('@/views/ChannelConfig.vue'), meta: { title: 'nav.channel' } },
       ]
     }
   ]

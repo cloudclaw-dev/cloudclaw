@@ -500,4 +500,15 @@ pre:hover > .code-copy-btn { opacity: 1; }
 .memory-ref-content { line-height: 1.4; }
 .slide-enter-active, .slide-leave-active { transition: all 0.2s; overflow: hidden; }
 .slide-enter-from, .slide-leave-to { opacity: 0; max-height: 0; }
+@media (max-width: 767px) {
+  .message-row { gap: 8px; margin-bottom: 16px; }
+  .message-content { max-width: calc(100vw - 56px) !important; }
+  .message-row.user .message-content { max-width: 80% !important; }
+  .message-actions { opacity: 1 !important; }
+  .msg-action-btn { padding: 6px 10px; }
+  .action-label { display: none; }
+  .markdown-body :deep(pre) { font-size: 12px; padding: 8px 12px; }
+  .markdown-body :deep(code) { font-size: 12px; }
+  .code-copy-btn { opacity: 1; }
+}
 </style>

@@ -55,7 +55,7 @@ public class ThinkingDisabledConnector implements ClientHttpConnector {
         @Override public HttpHeaders getHeaders() { return delegate.getHeaders(); }
         @Override public MultiValueMap<String, HttpCookie> getCookies() { return delegate.getCookies(); }
         @Override public Map<String, Object> getAttributes() { return delegate.getAttributes(); }
-        @Override public DefaultDataBufferFactory bufferFactory() { return new DefaultDataBufferFactory(); }
+        @Override public DefaultDataBufferFactory bufferFactory() { return bufferFactory; }
         @Override public <T> T getNativeRequest() { return delegate.getNativeRequest(); }
         @Override public Mono<Void> setComplete() { return delegate.setComplete(); }
         @Override public boolean isCommitted() { return delegate.isCommitted(); }

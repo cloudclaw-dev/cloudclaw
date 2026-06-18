@@ -3,13 +3,16 @@
 -- ============================================================
 
 CREATE TABLE users (
-    id          VARCHAR(36) PRIMARY KEY,
-    username    VARCHAR(100) NOT NULL UNIQUE,
-    password    VARCHAR(255) NOT NULL,
-    email       VARCHAR(255),
-    role        VARCHAR(20) NOT NULL DEFAULT 'user',
-    enabled     BOOLEAN DEFAULT TRUE,
-    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    id              VARCHAR(36) PRIMARY KEY,
+    username        VARCHAR(100) NOT NULL UNIQUE,
+    password        VARCHAR(255) NOT NULL,
+    email           VARCHAR(255),
+    display_name    VARCHAR(100),
+    avatar_url      VARCHAR(500),
+    phone           VARCHAR(50),
+    role            VARCHAR(20) NOT NULL DEFAULT 'user',
+    enabled         BOOLEAN DEFAULT TRUE,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP
 );
 
 CREATE TABLE api_keys (
@@ -288,13 +291,61 @@ CREATE INDEX idx_usage_stats_date ON llm_usage_stats(stat_date);
 CREATE INDEX idx_usage_stats_user ON llm_usage_stats(user_id);
 CREATE INDEX idx_usage_stats_model ON llm_usage_stats(model_id);
 
+-- Channel configuration (feishu, dingtalk, wecom, etc.)
+CREATE TABLE channel_config (
+    id                  VARCHAR(36) PRIMARY KEY,
+    channel_type        VARCHAR(20) NOT NULL,
+    agent_id            VARCHAR(36) REFERENCES agents(id),
+    enabled             BOOLEAN DEFAULT FALSE,
+    name                VARCHAR(100),
+    app_id              VARCHAR(200),
+    app_secret_enc      VARCHAR(500),
+    verification_token  VARCHAR(200),
+    encrypt_key         VARCHAR(200),
+    redirect_uri        VARCHAR(500),
+    extra_config        TEXT,
+    connection_mode     VARCHAR(20) DEFAULT 'long-connection',
+    connection_status   VARCHAR(20) DEFAULT 'disconnected',
+    last_connected_at   TIMESTAMP,
+    purpose             VARCHAR(20) DEFAULT 'bot',
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_channel_type_app_id UNIQUE (channel_type, app_id)
+);
+
+-- User ↔ Channel binding (e.g., CloudClaw user ↔ Feishu open_id)
+CREATE TABLE channel_binding (
+    id              VARCHAR(36) PRIMARY KEY,
+    user_id         VARCHAR(36) NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+    channel_type    VARCHAR(20) NOT NULL,
+    channel_user_id VARCHAR(100) NOT NULL,
+    channel_data    TEXT,
+    created_at      TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_channel_user UNIQUE (channel_type, channel_user_id),
+    CONSTRAINT uk_user_channel UNIQUE (user_id, channel_type)
+);
+
+-- Feishu conversation ↔ CloudClaw Session mapping
+-- One session per (bot config, feishu chat, feishu user)
+CREATE TABLE feishu_conversation (
+    id                  VARCHAR(36) PRIMARY KEY,
+    channel_config_id   VARCHAR(36) NOT NULL REFERENCES channel_config(id) ON DELETE CASCADE,
+    feishu_chat_id      VARCHAR(100) NOT NULL,
+    feishu_chat_type    VARCHAR(20) NOT NULL DEFAULT 'p2p',
+    feishu_user_id      VARCHAR(100) NOT NULL,
+    session_id          VARCHAR(36) REFERENCES sessions(id) ON DELETE SET NULL,
+    created_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at          TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    CONSTRAINT uk_feishu_conversation UNIQUE (channel_config_id, feishu_chat_id, feishu_user_id)
+);
+
 -- ============================================================
 -- Seed Data
 -- ============================================================
 
 -- Default admin user (password: admin123, BCrypt encoded)
 INSERT INTO users (id, username, password, role, enabled) VALUES
-    ('00000000-0000-0000-0000-000000000001', 'admin', '$2b$10$icRYpNK6GUGe1r5f56/IT.jetQ5oRegsI1wd2u6H6wjQsZNBQvss.', 'ADMIN', true);
+    ('00000000-0000-0000-0000-000000000001', 'admin', '$2a$10$ZkD7rUEdAGuwhxfqZhAfgej0bWAPNGC9RsyJLywacCbbRmrRM51bC', 'ADMIN', true);
 
 -- Default agent
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, created_by, enabled) VALUES
@@ -374,6 +425,8 @@ INSERT INTO agents (id, name, description, system_prompt, model_id, temperature,
  'parallel',
  '{"mode":"parallel","nodes":[{"id":"node_1","name":"optimist","display_name":"乐观派","description":"","system_prompt":"你总是从积极乐观的角度分析问题，看到好的一面。","model_id":"glm-5.1"},{"id":"node_2","name":"pessimist","display_name":"悲观派","description":"","system_prompt":"你总是从风险和问题的角度分析事情，指出潜在隐患。","model_id":"glm-5.1"},{"id":"node_3","name":"realist","display_name":"现实派","description":"","system_prompt":"你从客观中立的角度分析问题，给出务实的建议。","model_id":"glm-5.1"}],"parallel_config":{"merge_strategy":"summarize","max_concurrent":5}}',
  '00000000-0000-0000-0000-000000000001', true);
+
+-- Channel configs are created by users through the admin UI (no pre-seeded rows)
 
 -- Debug: chat trace table
 CREATE TABLE IF NOT EXISTS chat_trace (

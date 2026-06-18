@@ -10,7 +10,7 @@ Built with Spring Boot · Spring AI · Vue 3
 [![Java](https://img.shields.io/badge/Java-17-orange.svg)](https://openjdk.org/projects/jdk/17/)
 [![Spring Boot](https://img.shields.io/badge/Spring%20Boot-3.4.5-brightgreen.svg)](https://spring.io/projects/spring-boot)
 
-[🌐 Website](https://cloudclaw.run) · [📖 Documentation](https://cloudclaw.run) · [🎮 Demo](https://demo.cloudclaw.run) · [💬 Discussions](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 Issues](https://github.com/cloudclaw-dev/cloudclaw/issues)
+[🌐 Website](https://cloudclaw.run) · [📖 Documentation](https://cloudclaw.run) · [💬 Discussions](https://github.com/cloudclaw-dev/cloudclaw/discussions) · [🐛 Issues](https://github.com/cloudclaw-dev/cloudclaw/issues)
 
 **English** · [中文](README_CN.md)
 
@@ -78,7 +78,7 @@ export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
 # Run
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.6.jar
 ```
 
 Open http://localhost:8080/ and login with `admin / admin123`.
@@ -99,7 +99,7 @@ mvn clean package -DskipTests
 export JWT_SECRET="your-secret-key-at-least-32-bytes-long!!"
 export CRYPTO_SECRET="your-crypto-secret-key-at-least-32b"
 
-java -jar cloudclaw-app/target/cloudclaw-app-1.0.5.jar \
+java -jar cloudclaw-app/target/cloudclaw-app-1.0.6.jar \
   --spring.profiles.active=cluster
 ```
 

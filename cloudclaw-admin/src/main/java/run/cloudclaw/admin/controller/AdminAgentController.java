@@ -182,7 +182,7 @@ public class AdminAgentController {
             agent.setSandboxMode(request.getSandboxMode());
         }
         if (request.getSandboxTimeout() != null) agent.setSandboxTimeout(request.getSandboxTimeout());
-        if (request.getSandboxProviderId() != null) agent.setSandboxProviderId(request.getSandboxProviderId());
+        if (request.getSandboxProviderId() != null) agent.setSandboxProviderId(request.getSandboxProviderId().isBlank() ? null : request.getSandboxProviderId());
         if (request.getEnabled() != null) agent.setEnabled(request.getEnabled());
 
         // Sub-agents JSON (Agent Transfer v2)

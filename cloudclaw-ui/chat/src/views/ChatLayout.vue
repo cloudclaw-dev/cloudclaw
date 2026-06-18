@@ -63,6 +63,10 @@
             <el-icon :size="18"><component :is="isDark ? Sunny : Moon" /></el-icon>
             <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ isDark ? $t('login.light') : $t('login.dark') }}</span>
           </div>
+          <div class="nav-bar-item" :class="{ active: $route.path === '/profile' }" @click="$router.push('/profile')" :title="t('nav.profile')">
+            <el-icon :size="18"><UserFilled /></el-icon>
+            <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ $t('nav.profile') }}</span>
+          </div>
           <div class="nav-bar-item" @click="handleLogout" :title="$t('nav.logout')">
             <el-icon :size="18"><SwitchButton /></el-icon>
             <span class="nav-bar-label" :class="{ 'label-hidden': navCollapsed }">{{ $t('nav.logout') }}</span>
@@ -84,6 +88,10 @@
               <span class="header-title">{{ currentSessionTitle || 'CloudClaw Chat' }}</span>
             </div>
             <el-tag v-if="activeAgentName" type="warning" size="small" effect="plain">{{ activeAgentName }}</el-tag>
+            <div class="ws-status-indicator" :title="wsConnected ? 'WebSocket 已连接' : wsUseSSE ? 'SSE 模式' : 'WebSocket 连接中...'">
+              <span class="ws-status-dot" :class="wsConnected ? 'connected' : wsUseSSE ? 'sse' : 'connecting'"></span>
+              <span class="ws-status-text">{{ wsConnected ? 'WS' : wsUseSSE ? 'SSE' : '...' }}</span>
+            </div>
           </el-header>
           <el-main class="messages-area" ref="messagesAreaRef">
             <div class="messages-inner">
@@ -230,11 +238,11 @@ import { ElMessage, ElMessageBox } from 'element-plus'
 import {
   ChatDotRound, ChatLineSquare, Memo, Sunny, Moon, SwitchButton, Fold,
   Monitor, SetUp, Operation, Setting, Odometer, User,
-  Connection, Reading, Cpu, Loading, Grid, Close, EditPen, Plus
+  Connection, Reading, Cpu, Loading, Grid, Close, EditPen, Plus, UserFilled
 } from '@element-plus/icons-vue'
 import { renderMarkdown, md } from '@/utils/markdown'
 import api from '@/api/index'
-import { sessionApi, messageApi, agentApi, sendChatMessage } from '@/api/chat'
+import { sessionApi, messageApi, agentApi, sendChatMessage, sendChatMessageAuto, WebSocketChatClient } from '@/api/chat'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/utils/theme'
 import SessionList from '@/components/SessionList.vue'
@@ -264,7 +272,7 @@ interface WorkflowState { mode: string; steps: WorkflowStepStatus[]; activeNode:
 // ===== State =====
 const router = useRouter()
 const route = useRoute()
-const isSubPage = computed(() => ['/memory', '/agents'].includes(route.path))
+const isSubPage = computed(() => ['/memory', '/agents', '/profile'].includes(route.path))
 const navCollapsed = ref(false)
 const agents = ref<Agent[]>([])
 const sessions = ref<Session[]>([])
@@ -282,6 +290,12 @@ const streamingSegments = ref<MessageSegment[]>([])
 const messagesAreaRef = ref<HTMLElement | null>(null)
 const workflowState = ref<WorkflowState | null>(null)
 const reconnectStatus = ref<{ type: 'reconnecting' | 'error'; message: string } | null>(null)
+
+// WebSocket 客户端
+const wsClient = ref<WebSocketChatClient | null>(null)
+const wsEnabled = ref(true) // 是否启用 WebSocket（可配置）
+const wsConnected = ref(false) // WebSocket 连接状态（用于 UI 展示）
+const wsUseSSE = ref(false) // 是否回退到了 SSE 模式
 
 const showNewSessionDialog = ref(false)
 const newSessionAgentId = ref('')
@@ -484,56 +498,65 @@ const handleChunk = (chunk: any) => {
   scrollToBottom()
 }
 
-// ===== SSE Send with Retry =====
-const sendWithRetryFn = (sessionId: string, message: string, retries = 2): Promise<void> => {
-  return new Promise((resolve, reject) => {
-    const attempt = (n: number) => {
-      const controller = new AbortController()
-      abortController = controller
-      let collectedContent = ''
-      let collectedSegments: MessageSegment[] = []
+// ===== WebSocket Chat with Fallback =====
+const sendWithRetryFn = async (sessionId: string, message: string, retries = 2): Promise<void> => {
+  const token = localStorage.getItem('access_token')
+  if (!token) {
+    ElMessage.error(t('chat.noToken') || 'No access token')
+    return
+  }
 
-      sendChatMessage(
-        sessionId,
-        message,
-        (chunk) => { handleChunk(chunk) },
-        (contextStats) => {
-          if (contextStats) contextStats.value = contextStats
-          isStreaming.value = false
-          if (streamingContent.value || streamingSegments.value.length > 0) {
-            messages.value.push({
-              role: 'assistant',
-              content: streamingContent.value,
-              segments: [...streamingSegments.value],
-              createdAt: new Date().toISOString()
-            })
-          }
-          streamingContent.value = ''
-          streamingSegments.value = []
-          workflowState.value = null
-          startTitleRefresh()
-          resolve()
-        },
-        (error: any) => {
-          if (error?.name === 'AbortError') { resolve(); return }
-          if (n > 0) {
-            reconnectStatus.value = { type: 'reconnecting', message: t('chat.reconnecting') || 'Reconnecting...' }
-            setTimeout(() => attempt(n - 1), 1500)
-          } else {
-            isStreaming.value = false
-            streamingContent.value = ''
-            streamingSegments.value = []
-            workflowState.value = null
-            reconnectStatus.value = { type: 'error', message: t('chat.connectionLost') || 'Connection lost' }
-            ElMessage.error(t('chat.responseFailed') || 'Failed to get response')
-            reject(error)
-          }
-        },
-        controller.signal
-      )
-    }
-    attempt(retries)
-  })
+  // WebSocket 清理函数
+  let cleanup: (() => void) | null = null
+
+  try {
+    // 尝试使用 WebSocket
+    const controller = new AbortController()
+    abortController = controller
+
+    cleanup = await sendChatMessageAuto(
+      sessionId,
+      message,
+      (chunk) => { handleChunk(chunk) },
+      (contextStats) => {
+        if (contextStats) contextStats.value = contextStats
+        isStreaming.value = false
+        if (streamingContent.value || streamingSegments.value.length > 0) {
+          messages.value.push({
+            role: 'assistant',
+            content: streamingContent.value,
+            segments: [...streamingSegments.value],
+            createdAt: new Date().toISOString()
+          })
+        }
+        streamingContent.value = ''
+        streamingSegments.value = []
+        workflowState.value = null
+        startTitleRefresh()
+      },
+      (error: any) => {
+        if (error?.name === 'AbortError') { return }
+        // WebSocket 错误，已由 sendChatMessageAuto 处理回退
+        isStreaming.value = false
+        streamingContent.value = ''
+        streamingSegments.value = []
+        workflowState.value = null
+        reconnectStatus.value = { type: 'error', message: t('chat.responseFailed') || 'Failed to get response' }
+        ElMessage.error(t('chat.responseFailed') || 'Failed to get response')
+      },
+      controller.signal,
+      wsClient.value
+    )
+  } catch (error) {
+    // 发生异常
+    isStreaming.value = false
+    streamingContent.value = ''
+    streamingSegments.value = []
+    workflowState.value = null
+    reconnectStatus.value = { type: 'error', message: t('chat.responseFailed') || 'Failed to get response' }
+    ElMessage.error(t('chat.responseFailed') || 'Failed to get response')
+    throw error
+  }
 }
 
 // ===== Send Message =====
@@ -629,10 +652,20 @@ const startWithPrompt = async (promptText: string) => {
 }
 
 const stopGeneration = () => {
+  // 如果使用 WebSocket，发送 cancel 消息
+  if (wsEnabled.value && wsClient.value && currentSessionId.value) {
+    wsClient.value.cancelChat(currentSessionId.value)
+  }
+
+  // 如果使用 AbortController，中止它
   if (abortController) { abortController.abort(); abortController = null }
+
+  // 保存当前流式内容
   if (streamingContent.value || streamingSegments.value.length > 0) {
     messages.value.push({ role: 'assistant', content: streamingContent.value, segments: [...streamingSegments.value] })
   }
+
+  // 清理状态
   streamingContent.value = ''; streamingSegments.value = []; workflowState.value = null; isStreaming.value = false; reconnectStatus.value = null
 }
 
@@ -659,6 +692,51 @@ const handleMobileMore = () => { showMobileAdmin.value = false; showMobileMore.v
 const handleClickOutside = (e: MouseEvent) => {
   if (!(e.target as HTMLElement).closest('.nav-bar-user')) showUserMenu.value = false
 }
+
+/**
+ * 初始化 WebSocket 连接（如果启用）
+ * 连接失败时静默回退到 SSE，不显示错误提示。
+ * 仅在聊天过程中断开才提示用户。
+ */
+const initWebSocket = () => {
+  if (!wsEnabled.value) return
+
+  const token = localStorage.getItem('access_token')
+  if (!token) return
+
+  let hasConnected = false
+
+  try {
+    wsClient.value = new WebSocketChatClient(token, {
+      onConnected: (_userId) => {
+        hasConnected = true
+        wsConnected.value = true
+        reconnectStatus.value = null
+      },
+      onClosed: (event) => {
+        wsConnected.value = false
+        // 仅在已经成功连接过、且正在 streaming 时才提示断开
+        if (hasConnected && event.code !== 1000 && isStreaming.value) {
+          reconnectStatus.value = { type: 'error', message: t('chat.connectionLost') }
+        }
+      },
+      onError: (_error) => {
+        // 初始化阶段静默失败，回退到 SSE
+        if (!hasConnected) {
+          wsEnabled.value = false
+          wsUseSSE.value = true
+        }
+      }
+    })
+
+    wsClient.value.connect()
+  } catch (_error) {
+    // 静默回退到 SSE
+    wsEnabled.value = false
+    wsUseSSE.value = true
+  }
+}
+
 onMounted(async () => {
 
   checkMobile(); window.addEventListener('resize', checkMobile)
@@ -671,12 +749,21 @@ onMounted(async () => {
     if (info?.mode) systemMode.value = info.mode
   } catch (e) { /* ignore */ }
   document.addEventListener('visibilitychange', () => { if (!document.hidden) loadAgents() })
+
+  // 初始化 WebSocket
+  initWebSocket()
 })
 
 onUnmounted(() => {
   if (titleRefreshTimer) { clearInterval(titleRefreshTimer); titleRefreshTimer = null }
   window.removeEventListener('resize', checkMobile)
   document.removeEventListener('click', handleClickOutside)
+
+  // 清理 WebSocket 连接
+  if (wsClient.value) {
+    wsClient.value.close()
+    wsClient.value = null
+  }
 })
 
 watch(showNewSessionDialog, (val) => { if (val) loadAgents() })
@@ -755,6 +842,39 @@ watch(messages, () => { nextTick(() => scrollToBottom()) }, { deep: true })
 .chat-header-info { display: flex; align-items: center; gap: 8px; }
 .chat-header-icon-text { color: var(--cc-accent); }
 .header-title { font-size: 15px; font-weight: 600; color: var(--cc-text-primary); }
+
+/* WebSocket status indicator */
+.ws-status-indicator {
+  display: flex; align-items: center; gap: 4px;
+  padding: 2px 8px; border-radius: 10px;
+  font-size: 11px; font-weight: 500;
+  background: var(--cc-bg-secondary);
+  border: 1px solid var(--cc-border);
+  transition: all 0.3s;
+}
+.ws-status-dot {
+  width: 7px; height: 7px; border-radius: 50%;
+  display: inline-block; flex-shrink: 0;
+}
+.ws-status-dot.connected {
+  background: #22c55e;
+  box-shadow: 0 0 4px rgba(34, 197, 94, 0.5);
+}
+.ws-status-dot.sse {
+  background: #f59e0b;
+}
+.ws-status-dot.connecting {
+  background: #94a3b8;
+  animation: ws-pulse 1.4s ease-in-out infinite;
+}
+.ws-status-text {
+  color: var(--cc-text-secondary);
+  line-height: 1;
+}
+@keyframes ws-pulse {
+  0%, 100% { opacity: 0.4; }
+  50% { opacity: 1; }
+}
 
 /* ===== Messages Area ===== */
 .messages-area { flex: 1; overflow-y: auto; padding: 0 !important; background: var(--cc-bg-secondary); }
@@ -889,7 +1009,31 @@ watch(messages, () => { nextTick(() => scrollToBottom()) }, { deep: true })
   .mobile-menu-item .el-icon { color: var(--cc-text-secondary); }
   .admin-page-area { padding: 0 !important; }
   .markdown-body :deep(table) { display: block; overflow-x: auto; }
-  .markdown-body :deep(pre) { font-size: 12px; padding: 8px 12px; }
+  .markdown-body :deep(pre) { font-size: 12px; padding: 8px 12px; -webkit-overflow-scrolling: touch; }
+
+  /* === Mobile UX Improvements === */
+  /* dvh fix for mobile browser address bar */
+  .chat-layout { height: 100dvh; }
+  .main-container { height: calc(100dvh - 56px) !important; }
+
+  /* Safe area top for notch */
+  .chat-header {
+    padding-top: env(safe-area-inset-top, 0px) !important;
+    height: calc(48px + env(safe-area-inset-top, 0px)) !important;
+  }
+
+  /* Message actions always visible on touch */
+  .message-actions { opacity: 1 !important; }
+
+  /* Touch target minimum 44px */
+  .msg-action-btn { padding: 6px 12px; }
+  .send-button { width: 44px !important; height: 44px !important; }
+
+  /* User message bubble width */
+  .message-row.user .message-content { max-width: 85% !important; }
+
+  /* Tool cards overflow */
+  .tool-card, .tool-call-card, .tool-result-card { max-width: 100%; overflow-x: auto; }
 }
 </style>
 

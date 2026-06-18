@@ -4,6 +4,7 @@ import run.cloudclaw.auth.service.AuthService;
 import run.cloudclaw.common.dto.LoginRequest;
 import run.cloudclaw.common.dto.LoginResponse;
 import run.cloudclaw.common.dto.RefreshRequest;
+import run.cloudclaw.common.dto.RegisterRequest;
 import run.cloudclaw.common.dto.Result;
 import jakarta.servlet.http.HttpServletRequest;
 import jakarta.validation.Valid;
@@ -61,6 +62,16 @@ public class AuthController {
     public Result<LoginResponse> refresh(@Valid @RequestBody RefreshRequest request) {
         log.info("Token refresh request received");
         LoginResponse response = authService.refreshToken(request);
+        return Result.ok(response);
+    }
+
+    /**
+     * Register a new user and return JWT tokens for automatic login.
+     */
+    @PostMapping("/register")
+    public Result<LoginResponse> register(@Valid @RequestBody RegisterRequest request) {
+        log.info("Registration request received for username: {}", request.getUsername());
+        LoginResponse response = authService.register(request);
         return Result.ok(response);
     }
 

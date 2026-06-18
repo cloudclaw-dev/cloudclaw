@@ -18,6 +18,7 @@ import org.springframework.beans.factory.annotation.Qualifier;
 import reactor.core.publisher.Flux;
 import reactor.core.publisher.Sinks;
 
+import java.time.Duration;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.atomic.AtomicReference;
@@ -141,7 +142,7 @@ public class RouterExecutor {
                     stream.doOnNext(chunk -> {
                         response.append(chunk);
                         ReactiveContextHelper.safeEmitNext(sink, ChatChunk.text(chunk));
-                    }).blockLast();
+                    }).blockLast(Duration.ofMinutes(5));
 
                     finalResponse = response.toString();
                 }

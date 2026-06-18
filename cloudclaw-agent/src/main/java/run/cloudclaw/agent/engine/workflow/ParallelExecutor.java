@@ -21,6 +21,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
 import java.util.concurrent.Semaphore;
+import java.util.concurrent.TimeUnit;
 import java.util.stream.Collectors;
 
 /**
@@ -129,8 +130,8 @@ public class ParallelExecutor {
                     futures.add(future);
                 }
 
-                // Wait for all to complete
-                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).join();
+                // Wait for all to complete with timeout
+                CompletableFuture.allOf(futures.toArray(new CompletableFuture[0])).get(5, TimeUnit.MINUTES);
 
                 // Collect results in order
                 List<String> results = new ArrayList<>();

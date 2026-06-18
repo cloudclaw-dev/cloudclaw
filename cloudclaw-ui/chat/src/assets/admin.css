@@ -117,44 +117,106 @@
 /* ===== Mobile Responsive ===== */
 @media (max-width: 767px) {
   .admin-page {
-    padding: 12px;
+    padding: 10px;
   }
   .admin-page-header {
     flex-direction: column;
     align-items: flex-start;
-    gap: 12px;
-    padding: 12px 16px;
+    gap: 10px;
+    padding: 10px 14px;
+  }
+  .admin-page-header .header-icon {
+    width: 36px;
+    height: 36px;
+    border-radius: 8px;
+    font-size: 18px;
+  }
+  .admin-page-header h2 {
+    font-size: 16px;
+  }
+  .admin-page-header .header-desc {
+    font-size: 12px;
   }
   .admin-page-header .header-actions {
     width: 100%;
+    flex-wrap: wrap;
   }
   .admin-page-header .header-actions .el-button {
     flex: 1;
+    min-width: 0;
   }
   .admin-card {
-    padding: 12px;
+    padding: 10px;
+    margin-bottom: 10px;
   }
+  /* Table: horizontal scroll wrapper */
   .admin-page :deep(.el-table) {
     font-size: 12px;
+    width: 100% !important;
   }
   .admin-page :deep(.el-table__body-wrapper) {
     overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  .admin-page :deep(.el-table .cell) {
+    white-space: nowrap;
+  }
+  /* Dialogs */
   .admin-page :deep(.el-dialog) {
-    width: 92% !important;
-    margin: 4vh auto !important;
+    width: 94% !important;
+    margin: 2vh auto !important;
   }
   .admin-page :deep(.el-dialog__body) {
-    max-height: 60vh;
+    max-height: 65vh;
     overflow-y: auto;
+    -webkit-overflow-scrolling: touch;
   }
+  /* Form items tighter */
+  .admin-page :deep(.el-form-item) {
+    margin-bottom: 12px;
+  }
+  .admin-page :deep(.el-form-item__label) {
+    font-size: 13px;
+  }
+  /* Stats grid */
   .admin-stats-row {
     grid-template-columns: 1fr 1fr;
+    gap: 10px;
   }
+  .admin-stat-card {
+    padding: 12px 10px;
+  }
+  .admin-stat-card .stat-value {
+    font-size: 20px;
+  }
+  .admin-stat-card .stat-label {
+    font-size: 12px;
+  }
+  /* Toolbar stacked */
   .admin-table-toolbar {
     flex-direction: column;
     gap: 8px;
     align-items: stretch;
+  }
+  .admin-table-toolbar .el-input,
+  .admin-table-toolbar .el-select {
+    width: 100% !important;
+  }
+  /* Pagination compact */
+  .admin-page :deep(.el-pagination) {
+    flex-wrap: wrap;
+    justify-content: center;
+  }
+  .admin-page :deep(.el-pagination .el-pagination__sizes) {
+    display: none;
+  }
+  /* Tabs scrollable */
+  .admin-page :deep(.el-tabs__nav-wrap) {
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+  .admin-page :deep(.el-tabs__nav-wrap)::after {
+    display: none;
   }
 }
 

@@ -140,9 +140,17 @@ const handleFocus = () => {
 @media (max-width: 767px) {
   .input-wrapper {
     padding: 8px 12px;
+    padding-bottom: calc(8px + env(safe-area-inset-bottom, 0px));
+  }
+  .input-wrapper .el-textarea :deep(.el-textarea__inner) {
+    font-size: 16px; /* Prevent iOS auto-zoom */
+  }
+  .send-button {
+    width: 44px !important;
+    height: 44px !important;
   }
   .context-bar {
-    padding: 0 12px 6px;
+    display: none; /* Hide context bar on mobile */
   }
 }
 

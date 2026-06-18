@@ -156,13 +156,16 @@ public class AdminUserController {
     }
 
     private UserDTO toDTO(User user) {
-        return new UserDTO(
-                user.getId().toString(),
-                user.getUsername(),
-                user.getEmail(),
-                user.getRole().name(),
-                user.getEnabled(),
-                user.getCreatedAt()
-        );
+        return UserDTO.builder()
+                .id(user.getId().toString())
+                .username(user.getUsername())
+                .email(user.getEmail())
+                .displayName(user.getDisplayName())
+                .avatarUrl(user.getAvatarUrl())
+                .phone(user.getPhone())
+                .role(user.getRole().name())
+                .enabled(user.getEnabled())
+                .createdAt(user.getCreatedAt())
+                .build();
     }
 }

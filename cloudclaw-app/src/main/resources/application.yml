@@ -41,6 +41,13 @@ cloudclaw:
   mode: standalone
   crypto:
     secret: ${CRYPTO_SECRET:cloudclaw-default-crypto-secret-key-for-demo-only-please-change}
+  auth:
+    allow-registration: true
+    feishu:
+      frontend-url: ${FEISHU_FRONTEND_URL:http://localhost:8080}
+  feishu:
+    # Event receiving mode: long-connection (default) or callback (HTTP callback compatibility)
+    event-mode: long-connection
   cors:
     allowed-origins:
       - https://cloudclaw.run

@@ -29,12 +29,12 @@ public interface LlmUsageStatRepository extends JpaRepository<LlmUsageStat, Stri
                                                   @Param("startDate") String startDate,
                                                   @Param("endDate") String endDate);
 
-    @Query("SELECT new map(s.modelId as modelId, SUM(s.requestCount) as requestCount, SUM(s.tokensIn) as tokensIn, SUM(s.tokensOut) as tokensOut, SUM(s.cost) as cost) FROM LlmUsageStat s WHERE s.statDate BETWEEN :startDate AND :endDate GROUP BY s.modelId ORDER BY SUM(s.cost) DESC")
+    @Query("SELECT s.modelId, SUM(s.requestCount), SUM(s.tokensIn), SUM(s.tokensOut), SUM(s.cost) FROM LlmUsageStat s WHERE s.statDate BETWEEN :startDate AND :endDate GROUP BY s.modelId ORDER BY SUM(s.cost) DESC")
     List<Object[]> aggregateByModel(@Param("startDate") String startDate, @Param("endDate") String endDate);
 
-    @Query("SELECT new map(s.userId as userId, SUM(s.requestCount) as requestCount, SUM(s.tokensIn) as tokensIn, SUM(s.tokensOut) as tokensOut, SUM(s.cost) as cost) FROM LlmUsageStat s WHERE s.statDate BETWEEN :startDate AND :endDate GROUP BY s.userId ORDER BY SUM(s.cost) DESC")
+    @Query("SELECT s.userId, SUM(s.requestCount), SUM(s.tokensIn), SUM(s.tokensOut), SUM(s.cost) FROM LlmUsageStat s WHERE s.statDate BETWEEN :startDate AND :endDate GROUP BY s.userId ORDER BY SUM(s.cost) DESC")
     List<Object[]> aggregateByUser(@Param("startDate") String startDate, @Param("endDate") String endDate);
 
-    @Query("SELECT new map(s.statDate as statDate, SUM(s.requestCount) as requestCount, SUM(s.tokensIn) as tokensIn, SUM(s.tokensOut) as tokensOut, SUM(s.cost) as cost) FROM LlmUsageStat s WHERE s.statDate BETWEEN :startDate AND :endDate GROUP BY s.statDate ORDER BY s.statDate")
+    @Query("SELECT s.statDate, SUM(s.requestCount), SUM(s.tokensIn), SUM(s.tokensOut), SUM(s.cost) FROM LlmUsageStat s WHERE s.statDate BETWEEN :startDate AND :endDate GROUP BY s.statDate ORDER BY s.statDate")
     List<Object[]> aggregateByDate(@Param("startDate") String startDate, @Param("endDate") String endDate);
 }

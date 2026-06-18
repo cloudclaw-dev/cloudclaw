@@ -63,7 +63,9 @@ public class LlmRouteService {
     }
 
     /**
-     * 监听配置变更事件，清除对应的 LLM 客户端缓存�?     * �?llm model/provider/credential 变更时触发�?     */
+     * 监听配置变更事件，清除对应的 LLM 客户端缓存。
+     * 当 llm model/provider/credential 变更时触发。
+     */
     @EventListener
     public void onConfigChange(ConfigChangeEvent event) {
         if ("llm".equals(event.entityType())) {
@@ -174,14 +176,14 @@ public class LlmRouteService {
         String completionsPath = "/v1/chat/completions"; // default
 
         // Auto-detect version path from baseUrl for non-standard providers
-        // e.g. https://open.bigmodel.cn/api/coding/paas/v4 �?completionsPath = /v4/chat/completions
+        // e.g. https://open.bigmodel.cn/api/coding/paas/v4 → completionsPath = /v4/chat/completions
         java.util.regex.Matcher versionMatcher = java.util.regex.Pattern.compile("^(.+)/(v\\d+)$").matcher(baseUrl);
         if (versionMatcher.find()) {
             String version = versionMatcher.group(2);
             if (!"v1".equals(version)) {
                 baseUrl = versionMatcher.group(1);
                 completionsPath = "/" + version + "/chat/completions";
-                log.info("Detected non-standard version path: {} �?completionsPath={}", version, completionsPath);
+                log.info("Detected non-standard version path: {}, completionsPath={}", version, completionsPath);
             }
         }
 
@@ -237,6 +239,9 @@ public class LlmRouteService {
 
         if (params.containsKey("temperature")) {
             optionsBuilder.temperature(((Number) params.get("temperature")).doubleValue());
+        }
+        if (model.getMaxOutput() != null) {
+            optionsBuilder.maxTokens(model.getMaxOutput());
         }
 
         OpenAiChatModel chatModel = OpenAiChatModel.builder()

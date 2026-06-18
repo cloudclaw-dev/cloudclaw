@@ -248,7 +248,8 @@ public class ToolResolutionService {
                 .requestTimeout(java.time.Duration.ofSeconds(30))
                 .build();
 
-        log.info("MCP client created for server: {} ({})", server.getName(), url);
+        client.initialize();
+        log.info("MCP client created and initialized for server: {} ({})", server.getName(), url);
         return client;
     }
 

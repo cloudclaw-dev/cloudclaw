@@ -137,6 +137,11 @@ public class HandoffExecutor {
                     if (targetNodeId == null) {
                         // No handoff — agent finished its response
                         log.info("Handoff: {} completed without further handoff (depth={})", activeNode.getName(), depth);
+                        // Close MCP clients from this round
+                        for (McpSyncClient client : mcpClients) {
+                            try { client.close(); } catch (Exception ignored) {}
+                        }
+                        allMcpClients.removeAll(mcpClients);
                         break;
                     }
 
@@ -144,6 +149,12 @@ public class HandoffExecutor {
                     ResolvedNodeAgent targetNode = resolvedNodes.stream()
                             .filter(n -> n.getNodeId().equals(targetNodeId))
                             .findFirst().orElseThrow();
+
+                    // Close MCP clients from previous round before moving to next node
+                    for (McpSyncClient client : mcpClients) {
+                        try { client.close(); } catch (Exception ignored) {}
+                    }
+                    allMcpClients.removeAll(mcpClients);
 
                     // Emit handoff SSE event
                     ReactiveContextHelper.safeEmitNext(sink, ChatChunk.handoffEvent(activeNode.getDisplayName(),
@@ -164,6 +175,12 @@ public class HandoffExecutor {
 
                     // Switch to target node for next iteration
                     activeNode = targetNode;
+
+                    // Close MCP clients created in this round to prevent accumulation
+                    for (McpSyncClient client : mcpClients) {
+                        try { client.close(); } catch (Exception ignored) {}
+                    }
+                    allMcpClients.removeAll(mcpClients);
                 }
 
                 // Auto-return to root if configured and current agent is not root
@@ -180,7 +197,7 @@ public class HandoffExecutor {
                 log.error("Handoff execution error: {}", e.getMessage(), e);
                 sink.tryEmitError(e);
             } finally {
-                // Close all MCP clients
+                // Close all MCP clients (safety net for any remaining)
                 for (McpSyncClient client : allMcpClients) {
                     try { client.close(); } catch (Exception ignored) {}
                 }

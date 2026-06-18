@@ -11,6 +11,7 @@ import org.springframework.scheduling.annotation.Async;
 import org.springframework.stereotype.Service;
 
 import java.time.LocalDateTime;
+import java.util.concurrent.atomic.AtomicInteger;
 
 @Slf4j
 @Service
@@ -20,6 +21,8 @@ public class PromptLogService {
     private final PromptLogRepository repository;
 
     private static final int MAX_PROMPT_LOGS = 1000;
+    private static final int CLEANUP_INTERVAL = 50;
+    private final AtomicInteger callCounter = new AtomicInteger(0);
 
     @Async("asyncTaskExecutor")
     public void logAsync(String sessionId, String agentId, String userId,
@@ -40,7 +43,9 @@ public class PromptLogService {
                     .createdAt(LocalDateTime.now())
                     .build();
             repository.save(promptLog);
-            cleanupOldLogs();
+            if (callCounter.incrementAndGet() % CLEANUP_INTERVAL == 0) {
+                cleanupOldLogs();
+            }
         } catch (Exception e) {
             log.warn("Failed to save prompt log: {}", e.getMessage());
         }

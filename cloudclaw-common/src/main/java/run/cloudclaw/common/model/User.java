@@ -1,4 +1,4 @@
-    package run.cloudclaw.common.model;
+package run.cloudclaw.common.model;
 
 import jakarta.persistence.Column;
 import jakarta.persistence.Entity;
@@ -39,6 +39,15 @@ public class User {
 
     @Column(nullable = false, unique = true, length = 200)
     private String email;
+
+    @Column(name = "display_name", length = 100)
+    private String displayName;
+
+    @Column(name = "avatar_url", length = 500)
+    private String avatarUrl;
+
+    @Column(length = 50)
+    private String phone;
 
     @Column(nullable = false, length = 20)
     @Enumerated(EnumType.STRING)

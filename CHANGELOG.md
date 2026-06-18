@@ -5,6 +5,43 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2026-06-18
+
+### Added
+
+- **Feishu (飞书) Channel Integration** — Full bidirectional messaging support via Feishu Long Connection (WebSocket):
+  - `FeishuLongConnectionManager` — WebSocket client connecting to `wss://msg-frontier.feishu.cn/ws/v2`
+  - `FeishuMessageHandler` — Message processing with streaming card updates, emoji reactions, and agent/model metadata in card footer
+  - `FeishuAuthController` — Feishu OAuth login with auto-registration and channel binding
+  - Pseudo-streaming output: initial card send → throttled patch updates (1.5s interval) → final markdown render
+  - Configurable reaction emoji (Typing/THUMBSUP) on incoming messages for acknowledgment
+- **Mobile UI Optimization** — Comprehensive mobile-responsive improvements across the entire frontend:
+  - `100dvh` dynamic viewport height to fix mobile browser address bar issues
+  - Safe Area (env(safe-area-inset)) support for iPhone notch/home indicator
+  - Touch-friendly targets (minimum 44px), always-visible action buttons (no hover dependency)
+  - 16px input font size to prevent iOS auto-zoom
+  - Optimized admin layout: column flex direction, compact card spacing, horizontal table scroll
+  - Redesigned mobile admin header with logo, title, and badge
+- **Dashboard Recent Sessions API** — New `/api/admin/stats/recent-sessions` endpoint returning paginated session list with agent names
+- **Channel Config Page Redesign** — Unified admin-page styling, full i18n coverage (table headers, status labels, channel types, connection modes)
+- **Dashboard Chart Fixes** — ECharts grid spacing (top/bottom padding), rotated x-axis labels with interval skipping to prevent legend/label overlap
+
+### Changed
+
+- System version updated to 1.0.6
+- Channel config icons differentiated (MCP=Connection, Channel=ChatSquare)
+- Dashboard i18n: "Recent Sessions" → "Session Trends" (会话趋势) to distinguish from "Recent Chats" (最近对话)
+- Admin mobile header restyled with logo, hamburger button, and Admin badge
+
+### Fixed
+
+- Stale channel binding causing "Bound user not found" error after database rebuild — orphaned bindings now cleaned
+- Missing `Session` import in `FeishuMessageHandler` causing compilation failure
+- UUID-to-String type mismatch in `AdminStatsController.getRecentSessions()`
+- Channel config page style inconsistency with other admin pages
+- Duplicate "最近会话" labels in dashboard (session chart vs. recent chats list)
+- Duplicate `</style>` tag in `MessageBubble.vue` causing Vue build failure
+
 ## [1.0.5] - 2026-06-06
 
 ### Added

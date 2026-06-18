@@ -1,7 +1,19 @@
 <template>
   <div class="admin-layout" :class="{ dark: isDark }">
     <!-- Left menu -->
-    <el-aside :width="adminNavCollapsed ? '64px' : '260px'" class="nav-bar" :class="{ collapsed: adminNavCollapsed }">
+    <!-- Mobile hamburger -->
+        <div v-if="isMobile" class="mobile-header">
+          <button class="mobile-menu-btn" @click="toggleMobileNav">
+            <el-icon :size="20"><component :is="mobileNavVisible ? Close : Expand" /></el-icon>
+          </button>
+          <img src="@/assets/logo.png" alt="CC" class="mobile-logo" />
+          <span class="mobile-title">CloudClaw</span>
+          <span class="mobile-badge">Admin</span>
+        </div>
+        <!-- Mobile overlay -->
+        <div v-if="isMobile && mobileNavVisible" class="mobile-nav-overlay" @click="mobileNavVisible = false" />
+        <el-aside :width="adminNavCollapsed ? '64px' : '260px'" class="nav-bar"
+           :class="{ collapsed: adminNavCollapsed, 'mobile-open': isMobile && mobileNavVisible }">
       <!-- Fixed header -->
       <a href="http://cloudclaw.run" target="_blank" rel="noopener" class="nav-bar-header-link" style="text-decoration:none">
         <div class="nav-bar-header">
@@ -61,14 +73,14 @@
 </template>
 
 <script setup lang="ts">
-import { ref, computed, onMounted } from 'vue'
+import { ref, computed, onMounted, onUnmounted } from 'vue'
 import api from '@/api'
 import { useRouter, useRoute } from 'vue-router'
 import { useI18n } from 'vue-i18n'
 import { useTheme } from '@/utils/theme'
 import {
   ArrowLeft, Odometer, SetUp, Connection, Reading, Cpu, User, Grid, Monitor,
-  Sunny, Moon, SwitchButton, Fold
+  Sunny, Moon, SwitchButton, Fold, Close, Expand, ChatSquare
 } from '@element-plus/icons-vue'
 
 const router = useRouter()
@@ -76,6 +88,22 @@ const route = useRoute()
 const { t, locale } = useI18n()
 
 const adminNavCollapsed = ref(false)
+const isMobile = ref(false)
+const mobileNavVisible = ref(false)
+
+const checkMobile = () => {
+  isMobile.value = window.innerWidth < 768
+  if (!isMobile.value) mobileNavVisible.value = false
+}
+const toggleMobileNav = () => { mobileNavVisible.value = !mobileNavVisible.value }
+
+onMounted(() => {
+  checkMobile()
+  window.addEventListener('resize', checkMobile)
+})
+onUnmounted(() => {
+  window.removeEventListener('resize', checkMobile)
+})
 const systemVersion = ref('')
 const systemMode = ref('standalone')
 
@@ -88,6 +116,7 @@ const menuItems = computed(() => [
   { path: '/admin/users', label: t('nav.user'), icon: User },
   { path: '/admin/sandboxes', label: t('nav.sandbox'), icon: Grid },
   { path: '/admin/monitor', label: t('nav.monitor'), icon: Monitor },
+  { path: '/admin/channel', label: t('nav.channel'), icon: ChatSquare },
 ])
 
 const toggleLocale = () => { locale.value = locale.value === 'zh' ? 'en' : 'zh' }
@@ -113,6 +142,7 @@ const handleLogout = () => {
 .admin-layout {
   display: flex;
   height: 100vh;
+  height: 100dvh;
   background: var(--cc-bg-primary, #fff);
 }
 .nav-bar {
@@ -124,6 +154,7 @@ const handleLogout = () => {
   overflow: hidden;
   flex-shrink: 0;
   height: 100vh;
+  height: 100dvh;
 }
 html.dark .nav-bar { background: #1e1f22; border-right-color: #2d2d2f; }
 .nav-bar.collapsed { width: 64px; }
@@ -179,6 +210,92 @@ html.dark .nav-bar-divider { background: rgba(255,255,255,0.08); }
   overflow-y: auto;
   padding: 0 !important;
   background: var(--cc-bg-secondary, #f7f8fa);
+  min-width: 0;
+  min-height: 0;
 }
 html.dark .admin-content { background: #0a0a0a; }
+
+/* ===== Mobile ===== */
+.mobile-header {
+  display: none;
+}
+.mobile-nav-overlay {
+  display: none;
+}
+
+@media (max-width: 767px) {
+  .admin-layout {
+    flex-direction: column;
+    height: 100dvh;
+  }
+  .mobile-header {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 14px;
+    padding-top: calc(8px + env(safe-area-inset-top, 0px));
+    background: var(--cc-bg-primary, #fff);
+    border-bottom: 1px solid var(--el-border-color-light, #e4e7ed);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+    flex-shrink: 0;
+    box-shadow: 0 1px 4px rgba(0,0,0,0.04);
+  }
+  html.dark .mobile-header { background: #1a1a1a; border-bottom-color: #2d2d2f; box-shadow: 0 1px 4px rgba(0,0,0,0.2); }
+  .mobile-menu-btn {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: none;
+    border-radius: 8px;
+    background: var(--cc-bg-tertiary, #eef0f4);
+    color: var(--cc-text-primary, #1f2329);
+    cursor: pointer;
+    transition: background 0.15s;
+    flex-shrink: 0;
+  }
+  .mobile-menu-btn:hover { background: rgba(51,112,255,0.1); color: var(--cc-accent, #3370ff); }
+  html.dark .mobile-menu-btn { background: #2d2d2f; color: #e5eaf3; }
+  html.dark .mobile-menu-btn:hover { background: rgba(51,112,255,0.2); color: #5b9aff; }
+  .mobile-logo { width: 26px; height: 26px; border-radius: 6px; flex-shrink: 0; }
+  .mobile-title { font-size: 16px; font-weight: 700; color: var(--cc-text-primary, #1f2329); letter-spacing: -0.3px; }
+  html.dark .mobile-title { color: #e5eaf3; }
+  .mobile-badge {
+    font-size: 10px;
+    font-weight: 600;
+    color: var(--cc-accent, #3370ff);
+    background: rgba(51,112,255,0.1);
+    padding: 2px 8px;
+    border-radius: 4px;
+    letter-spacing: 0.5px;
+  }
+  html.dark .mobile-badge { color: #5b9aff; background: rgba(91,154,255,0.15); }
+
+  .nav-bar {
+    position: fixed;
+    top: 0;
+    left: 0;
+    z-index: 200;
+    transform: translateX(-100%);
+    transition: transform 0.25s ease;
+    box-shadow: 2px 0 12px rgba(0,0,0,0.15);
+  }
+  .nav-bar.mobile-open {
+    transform: translateX(0);
+  }
+  .nav-bar.collapsed { width: 260px; } /* override collapsed on mobile */
+
+  .mobile-nav-overlay {
+    display: block;
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background: rgba(0,0,0,0.4);
+    z-index: 150;
+  }
+
+  .collapse-toggle { display: none; } /* hide collapse on mobile */
+}
 </style>

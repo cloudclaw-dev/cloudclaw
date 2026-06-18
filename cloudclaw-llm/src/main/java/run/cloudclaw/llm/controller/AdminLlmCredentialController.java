@@ -67,15 +67,21 @@ public class AdminLlmCredentialController {
         String apiKey = (String) body.get("apiKey");
         Boolean enabled = (Boolean) body.get("enabled");
         LlmCredential saved = credentialService.update(id, apiKey, enabled);
-        configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.UPDATE, "llm", id);
+        // Pass providerId so LlmRouteService can invalidate all models under this provider
+        configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.UPDATE, "llm", "provider:" + saved.getProviderId());
         saved.setApiKeyEncrypted(maskKey(saved.getApiKeyEncrypted()));
         return Result.ok(saved);
     }
 
     @DeleteMapping("/{id}")
     public Result<Void> delete(@PathVariable String id) {
+        LlmCredential credential = credentialService.getById(id);
+        String providerId = credential != null ? credential.getProviderId() : null;
         credentialService.delete(id);
-        configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.DELETE, "llm", id);
+        // Pass providerId so LlmRouteService can invalidate all models under this provider
+        if (providerId != null) {
+            configChangeNotifier.notifyChange(ConfigChangeEvent.ChangeType.DELETE, "llm", "provider:" + providerId);
+        }
         return Result.ok();
     }
 

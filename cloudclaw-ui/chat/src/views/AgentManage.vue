@@ -408,6 +408,29 @@
               <el-input-number v-model="form.sandboxTimeout" :min="5" :max="300" :step="5" />
             </el-form-item>
           </el-tab-pane>
+          <el-tab-pane :label="'🔗 通道绑定'" name="feishu">
+            <div v-if="!isEdit" style="color:var(--el-text-color-secondary);font-size:13px;padding:20px 0">
+              请先保存 Agent 后再绑定通道
+            </div>
+            <template v-else>
+              <div v-if="agentChannels.length === 0" style="color:var(--el-text-color-secondary);font-size:13px;padding:12px 0">
+                当前 Agent 尚未绑定通道，请前往「通道管理」页面配置。
+              </div>
+              <div v-else>
+                <div v-for="ch in agentChannels" :key="ch.id" style="display:flex;align-items:center;gap:12px;padding:8px 0;border-bottom:1px solid var(--el-border-color-lighter)">
+                  <el-tag :type="ch.channelType === 'feishu' ? 'primary' : 'info'" size="small">{{ ch.channelType }}</el-tag>
+                  <span style="font-weight:500">{{ ch.name }}</span>
+                  <span style="color:var(--el-text-color-secondary);font-size:12px">{{ ch.appId }}</span>
+                  <el-tag :type="ch.connectionStatus === 'connected' ? 'success' : 'info'" size="small" effect="plain">
+                    {{ ch.connectionStatus === 'connected' ? '🟢 Online' : '⚫ Offline' }}
+                  </el-tag>
+                </div>
+                <div style="margin-top:12px">
+                  <el-button size="small" @click="$router.push('/admin/channel')">前往通道管理</el-button>
+                </div>
+              </div>
+            </template>
+          </el-tab-pane>
         </el-tabs>
       </el-form>
       <template #footer>
@@ -423,6 +446,7 @@ import { ref, reactive, computed, onMounted, watch } from 'vue'
 import { ElMessage } from 'element-plus'
 import type { FormInstance } from 'element-plus'
 import { SetUp, Plus, Search, ArrowUp, ArrowDown, Delete, Monitor, Connection, Grid, List } from '@element-plus/icons-vue'
+import api from '@/api'
 import { getAgents, getAgent, createAgent, updateAgent, deleteAgent, getMcpServers, getSkills, getLlmModels, getSandboxProviders } from '@/api/admin'
 import '@/assets/admin.css'
 import { useMobile } from '@/composables/useMobile'
@@ -517,6 +541,7 @@ const defaultForm = {
   handoffConfig: { ...defaultHandoffConfig },
 }
 const form = reactive({ ...defaultForm })
+const agentChannels = ref<any[]>([])
 const showAdvanced = ref(false)
 const rules = {
   name: [{ required: true, message: t('common.required'), trigger: 'blur' }],
@@ -755,6 +780,16 @@ watch(agentType, (newType, oldType) => {
   }
 })
 
+const loadAgentChannels = async (agentId: string) => {
+  if (!agentId) { agentChannels.value = []; return }
+  try {
+    const res = await api.get('/admin/channels', { params: { agentId } })
+    agentChannels.value = res.data?.data || res.data || []
+  } catch {
+    agentChannels.value = []
+  }
+}
+
 const openDialog = async (row?: any) => {
   skipWorkflowWatch = true
   isEdit.value = !!row
@@ -796,6 +831,8 @@ const openDialog = async (row?: any) => {
     if (detail.workflowMode && detail.workflow) {
       parseWorkflowIntoForm(detail.workflow, detail.workflowMode)
     }
+    // Load channels bound to this agent
+    await loadAgentChannels(detail.id)
   } else {
     editId.value = ''
     agentType.value = 'single'
@@ -865,6 +902,7 @@ const handleSave = async () => {
 
     if (isEdit.value) { await updateAgent(editId.value, payload) } else { await createAgent(payload) }
     ElMessage.success(isEdit.value ? t('common.updateSuccess') : t('common.createSuccess'))
+    // Channels are managed independently via Channel Management page
     dialogVisible.value = false
     loadData()
   } catch {} finally { saving.value = false }

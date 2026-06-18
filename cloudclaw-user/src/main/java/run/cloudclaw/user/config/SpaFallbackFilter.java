@@ -22,7 +22,7 @@ public class SpaFallbackFilter extends OncePerRequestFilter {
     @Override
     protected boolean shouldNotFilter(HttpServletRequest request) {
         String path = request.getRequestURI();
-        if (path.startsWith("/api/") || path.startsWith("/actuator")) {
+        if (path.startsWith("/api/") || path.startsWith("/actuator") || path.startsWith("/ws/")) {
             return true;
         }
         return false;

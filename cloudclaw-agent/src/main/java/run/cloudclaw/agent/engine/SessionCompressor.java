@@ -113,12 +113,8 @@ public class SessionCompressor {
         // Truncate if too long (prevent summarization call from being huge)
         int maxChars = 30000;
         if (conversationText.length() > maxChars) {
-            int cutIndex = conversationText.length() - maxChars;
-            // Ensure we don't split a surrogate pair (multi-byte Unicode character)
-            if (Character.isHighSurrogate(conversationText.charAt(cutIndex))) {
-                cutIndex++;
-            }
-            conversationText = conversationText.substring(cutIndex);
+            // Keep the oldest chars to preserve early conversation context for summarization
+            conversationText = conversationText.substring(0, maxChars);
         }
 
         // Call LLM to generate summary

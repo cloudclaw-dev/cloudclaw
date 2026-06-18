@@ -27,13 +27,14 @@ public class LlmUsageService {
 
     /**
      * Record token usage for a request. Upserts into the daily aggregation table.
+     * Uses BigDecimal for cost accumulation to avoid floating-point precision drift.
      */
     @Transactional
-    public void recordUsage(String credentialId, String modelId, String userId,
+    public synchronized void recordUsage(String credentialId, String modelId, String userId,
                             long tokensIn, long tokensOut) {
         String today = LocalDate.now().format(DATE_FMT);
 
-        // Calculate cost from model pricing
+        // Calculate cost from model pricing using BigDecimal
         double cost = calculateCost(modelId, tokensIn, tokensOut);
 
         LlmUsageStat stat = usageStatRepository
@@ -54,7 +55,10 @@ public class LlmUsageService {
         stat.setRequestCount(stat.getRequestCount() + 1);
         stat.setTokensIn(stat.getTokensIn() + tokensIn);
         stat.setTokensOut(stat.getTokensOut() + tokensOut);
-        stat.setCost(stat.getCost() + cost);
+        // Use BigDecimal for precise cost accumulation
+        stat.setCost(java.math.BigDecimal.valueOf(stat.getCost())
+                .add(java.math.BigDecimal.valueOf(cost))
+                .doubleValue());
 
         usageStatRepository.save(stat);
         log.debug("Recorded usage: model={}, user={}, tokensIn={}, tokensOut={}, cost={}",

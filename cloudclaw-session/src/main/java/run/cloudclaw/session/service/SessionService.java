@@ -19,6 +19,8 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import org.springframework.transaction.support.TransactionSynchronization;
+import org.springframework.transaction.support.TransactionSynchronizationManager;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -134,6 +136,8 @@ public class SessionService {
      * Fix M8: Save message and refresh cache atomically per session to prevent race conditions.
      * Uses a per-session ReentrantLock so that concurrent saves to the same session
      * serialize their DB save + cache refresh, avoiding stale cache reads.
+     *
+     * Cache refresh is deferred to after transaction commit to avoid reading uncommitted data.
      */
     @Transactional
     public Message saveMessage(Message message) {
@@ -146,7 +150,14 @@ public class SessionService {
 
             sessionRepository.updateTimestamp(saved.getSessionId().toString(), LocalDateTime.now());
 
-            refreshContextCache(saved.getSessionId().toString());
+            // Register cache refresh to execute after transaction commit
+            final String savedSessionId = saved.getSessionId().toString();
+            TransactionSynchronizationManager.registerSynchronization(new TransactionSynchronization() {
+                @Override
+                public void afterCommit() {
+                    refreshContextCache(savedSessionId);
+                }
+            });
 
             return saved;
         } finally {

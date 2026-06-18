@@ -278,7 +278,13 @@ public class SkillService {
                     baos.write(buffer, 0, len);
                 }
 
-                String content = baos.toString(StandardCharsets.UTF_8);
+                // Handle binary vs text files
+                String content;
+                if (isTextFile(name)) {
+                    content = baos.toString(StandardCharsets.UTF_8);
+                } else {
+                    content = "[base64]" + java.util.Base64.getEncoder().encodeToString(baos.toByteArray());
+                }
                 entries.add(new FileEntry(name, content));
             }
         }
@@ -346,6 +352,29 @@ public class SkillService {
         }
 
         return result;
+    }
+
+    private boolean isTextFile(String path) {
+        if (path == null) return true;
+        String lower = path.toLowerCase();
+        // Common text file extensions
+        return lower.endsWith(".md") || lower.endsWith(".txt") || lower.endsWith(".py")
+                || lower.endsWith(".js") || lower.endsWith(".ts") || lower.endsWith(".json")
+                || lower.endsWith(".sh") || lower.endsWith(".bash") || lower.endsWith(".html")
+                || lower.endsWith(".css") || lower.endsWith(".xml") || lower.endsWith(".yaml")
+                || lower.endsWith(".yml") || lower.endsWith(".java") || lower.endsWith(".c")
+                || lower.endsWith(".cpp") || lower.endsWith(".h") || lower.endsWith(".go")
+                || lower.endsWith(".rs") || lower.endsWith(".rb") || lower.endsWith(".php")
+                || lower.endsWith(".sql") || lower.endsWith(".properties") || lower.endsWith(".cfg")
+                || lower.endsWith(".ini") || lower.endsWith(".conf") || lower.endsWith(".toml")
+                || lower.endsWith(".env") || lower.endsWith(".gitignore") || lower.endsWith(".dockerfile")
+                || lower.endsWith(".csv") || lower.endsWith(".log") || lower.endsWith(".gradle")
+                || lower.endsWith(".kt") || lower.endsWith(".swift") || lower.endsWith(".scala")
+                || lower.endsWith(".r") || lower.endsWith(".lua") || lower.endsWith(".pl")
+                || lower.endsWith(".ex") || lower.endsWith(".exs") || lower.endsWith(".erl")
+                || lower.endsWith(".hx") || lower.endsWith(".dart") || lower.endsWith(".zig")
+                || lower.endsWith(".makefile") || lower.endsWith(".cmake") || lower.endsWith(".Dockerfile")
+                || !lower.contains("."); // No extension treated as text
     }
 
     private String guessFileType(String path) {

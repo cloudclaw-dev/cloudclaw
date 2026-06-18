@@ -100,6 +100,7 @@ export interface CreateLlmCredentialRequest {
 
 export const authApi = {
   login: (data: { username: string; password: string }) => api.post('/v1/auth/login', data),
+  register: (data: { username: string; email: string; password: string }) => api.post('/v1/auth/register', data),
   refresh: (refreshToken: string) => api.post('/v1/auth/refresh', { refreshToken })
 }
 
@@ -291,4 +292,284 @@ export async function pollMessages(
     params: { after: afterMessageId || undefined }
   })
   return res.data
+}
+
+// ===== WebSocket Chat Implementation =====
+
+interface WebSocketChatConfig {
+  /** WebSocket endpoint, defaults to current host's /ws/chat */
+  url?: string
+  onConnected?: (userId: string) => void
+  onClosed?: (event: CloseEvent) => void
+  onError?: (error: Event) => void
+}
+
+/** Client-to-server message types */
+interface WsChatMessage {
+  action: 'chat'
+  sessionId: string
+  message: string
+  requestId?: string
+}
+
+interface WsCancelMessage {
+  action: 'cancel'
+  sessionId: string
+}
+
+interface WsPingMessage {
+  action: 'ping'
+}
+
+/** Server-to-client control messages */
+interface WsConnectedMessage {
+  type: 'connected'
+  userId: string
+}
+
+interface WsErrorMessage {
+  type: 'error'
+  errorCode: number
+  errorDetail: string
+  done?: boolean
+}
+
+/**
+ * WebSocket chat client with heartbeat, auto-reconnect, and cancel support.
+ */
+export class WebSocketChatClient {
+  private ws: WebSocket | null = null
+  private token: string
+  private url: string
+  private manualClose = false
+  private reconnectTimer: ReturnType<typeof setTimeout> | null = null
+  private heartbeatTimer: ReturnType<typeof setInterval> | null = null
+  private reconnectDelay = 1000
+  private readonly maxReconnectDelay = 30000
+  private readonly heartbeatInterval = 30000
+
+  private onConnected?: (userId: string) => void
+  private onClosed?: (event: CloseEvent) => void
+  private onError?: (error: Event) => void
+
+  constructor(token: string, config: WebSocketChatConfig = {}) {
+    this.token = token
+    const baseUrl = config.url || this.getDefaultWsUrl()
+    this.url = `${baseUrl}?token=${encodeURIComponent(token)}`
+
+    if (config.onConnected) this.onConnected = config.onConnected
+    if (config.onClosed) this.onClosed = config.onClosed
+    if (config.onError) this.onError = config.onError
+  }
+
+  private getDefaultWsUrl(): string {
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:'
+    const host = window.location.host
+    return `${protocol}//${host}/ws/chat`
+  }
+
+  connect(): void {
+    if (this.ws && (this.ws.readyState === WebSocket.CONNECTING || this.ws.readyState === WebSocket.OPEN)) {
+      return
+    }
+    try {
+      this.ws = new WebSocket(this.url)
+      this.setupEventHandlers()
+    } catch (error) {
+      console.error('[WS] Failed to create WebSocket:', error)
+      this.scheduleReconnect()
+    }
+  }
+
+  private setupEventHandlers(): void {
+    if (!this.ws) return
+
+    this.ws.onopen = () => {
+      this.reconnectDelay = 1000
+      this.startHeartbeat()
+      if (this.reconnectTimer) {
+        clearTimeout(this.reconnectTimer)
+        this.reconnectTimer = null
+      }
+    }
+
+    this.ws.onmessage = (event: MessageEvent) => {
+      try {
+        const data = JSON.parse(event.data)
+        this.handleMessage(data)
+      } catch (error) {
+        console.error('[WS] Failed to parse message:', error)
+      }
+    }
+
+    this.ws.onclose = (event: CloseEvent) => {
+      this.cleanup()
+      if (!this.manualClose) {
+        this.scheduleReconnect()
+      }
+      if (this.onClosed) {
+        this.onClosed(event)
+      }
+    }
+
+    this.ws.onerror = (error: Event) => {
+      if (this.onError) {
+        this.onError(error)
+      }
+    }
+  }
+
+  private handleMessage(data: any): void {
+    if (data.type === 'connected') {
+      const msg = data as WsConnectedMessage
+      if (this.onConnected) {
+        this.onConnected(msg.userId)
+      }
+      return
+    }
+    if (data.type === 'error') {
+      return
+    }
+    if (data.type === 'pong') {
+      return
+    }
+  }
+
+  private startHeartbeat(): void {
+    this.stopHeartbeat()
+    this.heartbeatTimer = setInterval(() => {
+      if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+        this.send({ action: 'ping' })
+      }
+    }, this.heartbeatInterval)
+  }
+
+  private stopHeartbeat(): void {
+    if (this.heartbeatTimer) {
+      clearInterval(this.heartbeatTimer)
+      this.heartbeatTimer = null
+    }
+  }
+
+  private scheduleReconnect(): void {
+    if (this.reconnectTimer) return
+    const delay = this.reconnectDelay
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null
+      this.connect()
+    }, delay)
+    this.reconnectDelay = Math.min(this.reconnectDelay * 2, this.maxReconnectDelay)
+  }
+
+  send(message: object): boolean {
+    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
+      this.ws.send(JSON.stringify(message))
+      return true
+    }
+    return false
+  }
+
+  sendChat(sessionId: string, message: string, requestId?: string): boolean {
+    return this.send({ action: 'chat', sessionId, message, requestId })
+  }
+
+  cancelChat(sessionId: string): boolean {
+    return this.send({ action: 'cancel', sessionId })
+  }
+
+  close(): void {
+    this.manualClose = true
+    this.cleanup()
+    if (this.ws) {
+      this.ws.close(1000, 'Client closing')
+      this.ws = null
+    }
+  }
+
+  private cleanup(): void {
+    this.stopHeartbeat()
+    if (this.reconnectTimer) {
+      clearTimeout(this.reconnectTimer)
+      this.reconnectTimer = null
+    }
+  }
+
+  get readyState(): number {
+    return this.ws ? this.ws.readyState : WebSocket.CLOSED
+  }
+
+  get isConnected(): boolean {
+    return this.ws !== null && this.ws.readyState === WebSocket.OPEN
+  }
+}
+
+/**
+ * Send a chat message via an existing WebSocket long-lived connection.
+ * The caller is responsible for managing the connection lifecycle.
+ */
+export function sendChatViaExistingWs(
+  client: WebSocketChatClient,
+  sessionId: string,
+  message: string,
+  onChunk: (chunk: ChatChunk) => void,
+  onDone: (contextStats?: any) => void,
+  onError: (error: any) => void,
+  signal?: AbortSignal
+): boolean {
+  if (!client.isConnected) {
+    return false
+  }
+
+  // Register a temporary message handler for this chat session
+  const origHandler = client['handleMessage'].bind(client)
+  client['handleMessage'] = (data: any) => {
+    if (data.type === 'connected' || data.type === 'pong') return
+    if (data.type === 'error') {
+      onError(new Error(data.errorDetail || 'Server error'))
+      return
+    }
+    const chunk = data as ChatChunk
+    if (chunk.done) {
+      onDone(chunk.contextStats || undefined)
+      // Restore original handler after chat completes
+      client['handleMessage'] = origHandler
+    } else {
+      onChunk(chunk)
+    }
+  }
+
+  if (signal) {
+    signal.addEventListener('abort', () => {
+      client.cancelChat(sessionId)
+      client['handleMessage'] = origHandler
+      onError(new Error('Aborted'))
+    })
+  }
+
+  return client.sendChat(sessionId, message)
+}
+
+/**
+ * Unified chat send function with automatic WS/SSE selection.
+ * If an existing WS client is provided, reuses it (long-lived connection).
+ * Otherwise falls back to SSE.
+ */
+export async function sendChatMessageAuto(
+  sessionId: string,
+  message: string,
+  onChunk: (chunk: ChatChunk) => void,
+  onDone: (contextStats?: any) => void,
+  onError: (error: any) => void,
+  signal?: AbortSignal,
+  wsClient?: WebSocketChatClient | null
+): Promise<(() => void) | null> {
+  // Try existing WebSocket connection first
+  if (wsClient && wsClient.isConnected) {
+    const sent = sendChatViaExistingWs(wsClient, sessionId, message, onChunk, onDone, onError, signal)
+    if (sent) return null // connection lifecycle managed by caller
+  }
+
+  // Fallback to SSE
+  await sendChatMessage(sessionId, message, onChunk, onDone, onError, signal)
+  return null
 }

@@ -158,10 +158,10 @@ onUnmounted(() => { chartInstances.forEach(c => c.dispose()) })
 
 const loadRecentChats = async () => {
   try {
-    const res: any = await api.get('/admin/stats/sessions', { params: { page: 1, size: 10 } })
-    const data = res?.data?.data ?? res?.data ?? res
-    const list = data?.list ?? data?.items ?? data ?? []
-    recentChats.value = Array.isArray(list) ? list.slice(0, 10) : []
+    const res: any = await api.get('/admin/stats/recent-sessions', { params: { page: 1, size: 10 } })
+    const data = res?.data ?? res
+    const list = Array.isArray(data) ? data : (data?.list ?? data?.items ?? [])
+    recentChats.value = list.slice(0, 10)
   } catch (e) {
     recentChats.value = []
   }
@@ -208,9 +208,9 @@ function renderUsageChart(data: any) {
   }
   chart.setOption({
     tooltip: { trigger: 'axis' },
-    legend: { data: ['Tokens In', 'Tokens Out'] },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: d.map((i: any) => i.date), axisLabel: { rotate: 30 } },
+    legend: { data: ['Tokens In', 'Tokens Out'], top: 0 },
+    grid: { left: '3%', right: '4%', top: 40, bottom: 60, containLabel: true },
+    xAxis: { type: 'category', data: d.map((i: any) => i.date), axisLabel: { rotate: 45, fontSize: 10, interval: 3 } },
     yAxis: { type: 'value' },
     series: [
       { name: 'Tokens In', data: d.map((i: any) => i.tokensIn), type: 'line', smooth: true, areaStyle: { opacity: 0.15 }, color: '#ff9500' },
@@ -233,8 +233,8 @@ function renderSessionChart(data: any) {
   }
   chart.setOption({
     tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', containLabel: true },
-    xAxis: { type: 'category', data: d.map((i: any) => i.date), axisLabel: { rotate: 30 } },
+    grid: { left: '3%', right: '4%', top: 20, bottom: 60, containLabel: true },
+    xAxis: { type: 'category', data: d.map((i: any) => i.date), axisLabel: { rotate: 45, fontSize: 10, interval: 3 } },
     yAxis: { type: 'value' },
     series: [{ data: d.map((i: any) => i.count), type: 'bar', color: '#3370ff', itemStyle: { borderRadius: [4, 4, 0, 0] } }]
   })

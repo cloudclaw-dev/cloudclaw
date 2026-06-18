@@ -7,6 +7,7 @@ import run.cloudclaw.auth.token.TokenProperties;
 import run.cloudclaw.common.dto.LoginRequest;
 import run.cloudclaw.common.dto.LoginResponse;
 import run.cloudclaw.common.dto.RefreshRequest;
+import run.cloudclaw.common.dto.RegisterRequest;
 import run.cloudclaw.common.exception.BusinessException;
 import run.cloudclaw.common.exception.ErrorCode;
 import run.cloudclaw.common.model.User;
@@ -173,5 +174,42 @@ public class AuthService implements DisposableBean {
             log.warn("Token refresh failed: token expired during processing");
             throw new BusinessException(ErrorCode.AUTH_TOKEN_EXPIRED);
         }
+    }
+
+    /**
+     * Register a new user.
+     *
+     * @param request the registration request with username, password, email
+     * @return JWT tokens for automatic login after registration
+     */
+    public LoginResponse register(RegisterRequest request) {
+        log.info("Registration attempt for username: {}", request.getUsername());
+
+        // Check username uniqueness
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
+            throw new BusinessException(ErrorCode.AUTH_USERNAME_EXISTS);
+        }
+
+        // Check email uniqueness
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
+            throw new BusinessException(ErrorCode.AUTH_EMAIL_EXISTS);
+        }
+
+        // Create user
+        User user = new User();
+        user.setUsername(request.getUsername());
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEmail(request.getEmail());
+        user.setRole(User.UserRole.USER);
+        user.setEnabled(true);
+        user = userRepository.save(user);
+
+        String userId = user.getId().toString();
+        String accessToken = jwtTokenProvider.generateAccessToken(userId, user.getUsername(), "user");
+        String refreshToken = jwtTokenProvider.generateRefreshToken(userId);
+
+        log.info("Registration successful for username: {}, userId: {}", user.getUsername(), userId);
+
+        return new LoginResponse(accessToken, refreshToken, tokenProperties.getAccessTokenTtl().getSeconds());
     }
 }

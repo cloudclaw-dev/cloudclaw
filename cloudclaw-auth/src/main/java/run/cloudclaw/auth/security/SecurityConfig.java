@@ -61,8 +61,14 @@ public class SecurityConfig {
                         .requestMatchers("/chat/**", "/admin/**").permitAll()
                         .requestMatchers("/static/**", "/assets/**", "/favicon.ico").permitAll()
                         .requestMatchers("/actuator/health", "/actuator/info").permitAll()
+                        // WebSocket endpoint: authentication handled by HandshakeInterceptor
+                        .requestMatchers("/ws/**").permitAll()
                         // Auth endpoints: public access
                         .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/auth/**").permitAll()
+                        // Feishu OAuth callbacks: public access
+                        .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/v1/auth/feishu/**").permitAll()
+                        // Feishu bot event callback: public access (verified by token)
+                        .requestMatchers(org.springframework.http.HttpMethod.POST, "/api/v1/channel/feishu/event/**").permitAll()
                         // Admin stats info: public read (version, mode)
                         .requestMatchers(org.springframework.http.HttpMethod.GET, "/api/admin/stats/info").permitAll()
                         // Admin POST endpoints: require ADMIN role

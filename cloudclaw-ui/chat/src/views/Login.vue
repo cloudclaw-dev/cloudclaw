@@ -47,7 +47,16 @@
         </el-form-item>
       </el-form>
 
+      <el-divider>{{ t('login.orDivider') }}</el-divider>
+
+      <el-button class="feishu-btn" size="large" @click="feishuLogin">
+        <span style="font-size:16px">🔵</span> {{ t('login.feishuLogin') }}
+      </el-button>
+
       <div class="login-footer">
+        <span>{{ t('login.noAccount') }} </span>
+        <el-link type="primary" @click="router.push('/register')">{{ t('login.goToRegister') }}</el-link>
+        <span style="flex:1"></span>
         <el-switch
           v-model="isDark"
           :active-text="t('login.dark')"
@@ -92,6 +101,28 @@ const loginRules: FormRules = {
 
 const { isDark, toggleDark } = useTheme()
 const toggleTheme = (val: boolean) => { isDark.value = val }
+
+const feishuLogin = () => {
+  window.location.href = '/api/v1/auth/feishu/authorize'
+}
+
+const handleFeishuCallback = () => {
+  const params = new URLSearchParams(window.location.search)
+  const accessToken = params.get('access_token')
+  const refreshToken = params.get('refresh_token')
+  if (accessToken) {
+    localStorage.setItem('access_token', accessToken)
+    if (refreshToken) localStorage.setItem('refresh_token', refreshToken)
+    router.push('/')
+  }
+  const error = params.get('error')
+  if (error) {
+    ElMessage.error(params.get('message') || 'Feishu login failed')
+  }
+}
+
+// Check for feishu callback params on mount
+onMounted(() => { handleFeishuCallback() })
 
 const handleLogin = async () => {
   if (!loginFormRef.value) return
@@ -207,6 +238,7 @@ onMounted(() => {
   border-radius: 8px;
 }
 
+.feishu-btn { width: 100%; margin-bottom: 16px; }
 .login-footer {
   display: flex;
   justify-content: center;

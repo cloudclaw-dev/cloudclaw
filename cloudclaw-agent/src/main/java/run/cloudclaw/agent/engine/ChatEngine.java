@@ -29,6 +29,9 @@ import run.cloudclaw.debug.event.DebugEventBus;
 
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.Executor;
+import java.util.concurrent.ExecutorService;
+import java.util.concurrent.Executors;
+import java.util.function.Consumer;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.ai.chat.client.ChatClient;
 import org.springframework.ai.chat.client.advisor.ToolCallAdvisor;
@@ -78,6 +81,10 @@ public class ChatEngine {
     private final WorkflowEngine workflowEngine;
     private final run.cloudclaw.memory.service.TokenEstimator tokenEstimator;
     private final DebugEventBus debugEventBus;
+
+    /** Independent thread pool for executing completion callbacks (does not block ChatEngine workers). */
+    private final ExecutorService callbackExecutor = Executors.newCachedThreadPool(
+            r -> { Thread t = new Thread(r, "chat-callback"); t.setDaemon(true); return t; });
 
     public ChatEngine(LlmRouteService llmRouteService,
                       SessionService sessionService,
@@ -501,7 +508,7 @@ public class ChatEngine {
     }
 
     /**
-     * 
+     *
      * Invoke LLM with the target sub-agent's configuration after a transfer.
      * The response streams into the same sink.
      */
@@ -617,23 +624,59 @@ public class ChatEngine {
                 })
                 .doOnComplete(() -> {
                     ReactiveContextHelper.bindAll(sessionId);
-                    // Save target agent's response
-                    String resp = targetResponse.toString();
-                    if (!resp.isBlank()) {
-                        Message msg = new Message();
-                        msg.setSessionId(UUID.fromString(sessionId));
-                        msg.setRole("assistant");
-                        msg.setContent(resp);
-                        msg.setAgentName(targetAgent.getAgentName());
-                        sessionService.saveMessage(msg);
-                    }
-                    log.info("Transfer agent response saved: path={}, len={}", targetPath, resp.length());
-                    // Signal completion after transfer response is fully saved
-                    if (onComplete != null) {
+                    // Check for chained transfer (returnDirect in sub-agent response)
+                    TransferInfo chainedTransfer = agentTransferService.parseTransferJson(targetResponse.toString());
+
+                    if (chainedTransfer != null) {
+                        log.info("Chained transfer detected: {} → {} (reason: {})", targetPath, chainedTransfer.getTargetPath(), chainedTransfer.getReason());
+
+                        // Save transfer system message
+                        Message transferMsg = new Message();
+                        transferMsg.setSessionId(UUID.fromString(sessionId));
+                        transferMsg.setRole("system");
+                        transferMsg.setContent("[Transfer: " + targetPath + " → " + chainedTransfer.getTargetPath()
+                                + ", 原因=" + chainedTransfer.getReason() + "]");
+                        sessionService.saveMessage(transferMsg);
+
+                        // Update active_agent_path
+                        sessionService.updateActiveAgentPath(sessionId, userId, chainedTransfer.getTargetPath());
+
+                        // Notify frontend
+                        String fromName = agentTransferService.getDisplayName(rootConfig, targetPath);
+                        String toName = agentTransferService.getDisplayName(rootConfig, chainedTransfer.getTargetPath());
+                        ReactiveContextHelper.safeEmitNext(sink, ChatChunk.handoffEvent(fromName, toName, chainedTransfer.getReason()));
+
+                        // Recursively invoke the next transfer
                         try {
-                            onComplete.run();
+                            invokeAgentTransfer(sink, userId, sessionId, userMessage, rootConfig,
+                                    chainedTransfer.getTargetPath(), history, onComplete);
                         } catch (Exception e) {
-                            log.warn("Transfer completion callback failed: {}", e.getMessage());
+                            log.error("Failed to invoke chained agent transfer: {}", e.getMessage(), e);
+                            if (onComplete != null) {
+                                try { onComplete.run(); } catch (Exception ex) {
+                                    log.warn("Transfer completion callback failed: {}", ex.getMessage());
+                                }
+                            }
+                        }
+                    } else {
+                        // Save target agent's response
+                        String resp = targetResponse.toString();
+                        if (!resp.isBlank()) {
+                            Message msg = new Message();
+                            msg.setSessionId(UUID.fromString(sessionId));
+                            msg.setRole("assistant");
+                            msg.setContent(resp);
+                            msg.setAgentName(targetAgent.getAgentName());
+                            sessionService.saveMessage(msg);
+                        }
+                        log.info("Transfer agent response saved: path={}, len={}", targetPath, resp.length());
+                        // Signal completion after transfer response is fully saved
+                        if (onComplete != null) {
+                            try {
+                                onComplete.run();
+                            } catch (Exception e) {
+                                log.warn("Transfer completion callback failed: {}", e.getMessage());
+                            }
                         }
                     }
                 })
@@ -672,9 +715,6 @@ public class ChatEngine {
                 log.debug("Title generation check failed (non-critical): {}", e.getMessage());
             }
         }
-
-        MemoryTools.clearContext(sessionId);
-        SandboxContext.clear();
 
         try {
             sessionCompressor.compressIfNeeded(sessionId, modelId,
@@ -720,7 +760,7 @@ public class ChatEngine {
                 .toolCall(false)
                 .done(true)
                 .contextStats(stats)
-                .memoryRefs(memRefs.isEmpty() ? null : memRefs)
+                .memoryRefs(memRefs != null && !memRefs.isEmpty() ? memRefs : null)
                 .build());
         sink.tryEmitComplete();
     }
@@ -771,6 +811,20 @@ public class ChatEngine {
     // ========== Async Chat Mode ==========
 
     public AsyncChatResult chatAsync(String userId, String sessionId, String userMessage, String requestId) {
+        return chatAsync(userId, sessionId, userMessage, requestId, null);
+    }
+
+    /**
+     * Async chat with completion callback.
+     * The callback is invoked on a dedicated {@code callbackExecutor} thread pool,
+     * completely isolated from the ChatEngine worker threads. Callback exceptions
+     * are caught and logged so they never affect the main processing flow.
+     *
+     * @param onComplete callback invoked with the full response text (or error message) when processing finishes.
+     *                   May be {@code null} for backward-compatible behavior.
+     */
+    public AsyncChatResult chatAsync(String userId, String sessionId, String userMessage,
+                                      String requestId, Consumer<String> onComplete) {
         log.info("Async chat request: userId={}, sessionId={}, messageLength={}", userId, sessionId, userMessage.length());
 
         Session session = sessionService.getSession(userId, sessionId);
@@ -813,14 +867,15 @@ public class ChatEngine {
         UUID assistantMsgId = assistantMsg.getId();
 
         CompletableFuture.runAsync(() -> {
-            executeLlmAsync(sessionId, userId, session, userMessage, assistantMsgId, config);
+            executeLlmAsync(sessionId, userId, session, userMessage, assistantMsgId, config, onComplete);
         }, chatExecutor);
 
         return new AsyncChatResult(userMsg.getId(), assistantMsgId, "pending");
     }
 
     private void executeLlmAsync(String sessionId, String userId, Session session,
-                                  String userMessage, UUID assistantMsgId, AgentConfig config) {
+                                  String userMessage, UUID assistantMsgId, AgentConfig config,
+                                  Consumer<String> onComplete) {
         try {
             Message assistantMsg = sessionService.findMessageById(assistantMsgId);
             if (assistantMsg == null) return;
@@ -831,7 +886,7 @@ public class ChatEngine {
             if (workflowEngine.hasWorkflow(config)) {
                 log.info("Async mode: agent {} has workflow mode={}, executing",
                         config.getAgentId(), config.getWorkflowMode());
-                executeWorkflowAsync(sessionId, userId, userMessage, assistantMsgId, config);
+                executeWorkflowAsync(sessionId, userId, userMessage, assistantMsgId, config, onComplete);
                 return;
             }
 
@@ -868,6 +923,9 @@ public class ChatEngine {
                 String sproviderId = config.getSandboxProviderId();
                 SandboxContext.set(sessionId, agentIdStr, smode, sbackend, sproviderId);
             }
+
+            // Set debug trace context (consistent with chat() method)
+            TraceContext.set(sessionId, agentIdStr, userId, effectiveModelId);
 
             List<McpSyncClient> createdMcpClients = new ArrayList<>();
             AgentConfig effectiveConfig = activeAgent.isRoot() ? config : toolResolutionService.buildSubAgentConfig(config, activeAgent);
@@ -994,8 +1052,11 @@ public class ChatEngine {
 
             log.info("Async chat completed: sessionId={}, responseLength={}", sessionId, responseText.length());
 
+            triggerCallback(onComplete, responseText);
+
         } catch (Exception e) {
             log.error("Async chat failed for session {}: {}", sessionId, e.getMessage(), e);
+            String errorMsg = "抱歉，处理消息时出错：" + e.getMessage();
             try {
                 Message assistantMsg = sessionService.findMessageById(assistantMsgId);
                 if (assistantMsg != null) {
@@ -1006,6 +1067,7 @@ public class ChatEngine {
             } catch (Exception saveErr) {
                 log.error("Failed to update failed status: {}", saveErr.getMessage());
             }
+            triggerCallback(onComplete, errorMsg);
         }
     }
 
@@ -1014,7 +1076,8 @@ public class ChatEngine {
      * Collects the final result from the workflow Flux and saves it as the assistant message.
      */
     private void executeWorkflowAsync(String sessionId, String userId, String userMessage,
-                                      UUID assistantMsgId, AgentConfig config) {
+                                      UUID assistantMsgId, AgentConfig config,
+                                      Consumer<String> onComplete) {
         try {
             StringBuilder workflowResponse = new StringBuilder();
             workflowEngine.execute(userId, sessionId, userMessage, config, List.of())
@@ -1044,8 +1107,11 @@ public class ChatEngine {
             }
 
             log.info("Async workflow completed: sessionId={}, responseLength={}", sessionId, responseText.length());
+
+            triggerCallback(onComplete, responseText);
         } catch (Exception e) {
             log.error("Async workflow failed for session {}: {}", sessionId, e.getMessage(), e);
+            String errorMsg = "抱歉，处理消息时出错：" + e.getMessage();
             try {
                 Message assistantMsg = sessionService.findMessageById(assistantMsgId);
                 if (assistantMsg != null) {
@@ -1056,7 +1122,24 @@ public class ChatEngine {
             } catch (Exception saveErr) {
                 log.error("Failed to update failed status: {}", saveErr.getMessage());
             }
+            triggerCallback(onComplete, errorMsg);
         }
+    }
+
+    /**
+     * Trigger the completion callback on the dedicated callbackExecutor thread pool.
+     * Exceptions in the callback are caught and logged so they never affect
+     * the main ChatEngine processing flow.
+     */
+    private void triggerCallback(Consumer<String> onComplete, String result) {
+        if (onComplete == null) return;
+        callbackExecutor.submit(() -> {
+            try {
+                onComplete.accept(result);
+            } catch (Exception e) {
+                log.error("Chat callback failed", e);
+            }
+        });
     }
 
     private void generateTitleAsync(String sessionId, String userId, String userMessage, ChatClient chatClient) {

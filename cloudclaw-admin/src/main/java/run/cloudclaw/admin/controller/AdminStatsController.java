@@ -160,4 +160,36 @@ public class AdminStatsController {
 
         return Result.ok(stats);
     }
+
+    /**
+     * Get recent sessions list with agent names.
+     */
+    @GetMapping("/recent-sessions")
+    public Result<List<Map<String, Object>>> getRecentSessions(
+            @RequestParam(defaultValue = "1") int page,
+            @RequestParam(defaultValue = "10") int size) {
+        org.springframework.data.domain.Pageable pageable =
+            org.springframework.data.domain.PageRequest.of(Math.max(0, page - 1), Math.min(size, 50),
+                org.springframework.data.domain.Sort.by(org.springframework.data.domain.Sort.Direction.DESC, "updatedAt"));
+
+        var sessions = sessionRepository.findAll(pageable);
+
+        // Load agent names in batch
+        Map<String, String> agentNames = new HashMap<>();
+        for (var a : agentRepository.findAll()) {
+            agentNames.put(a.getId().toString(), a.getName());
+        }
+
+        List<Map<String, Object>> list = sessions.getContent().stream().map(s -> {
+            Map<String, Object> m = new LinkedHashMap<>();
+            m.put("id", s.getId().toString());
+            m.put("title", s.getTitle() != null && !s.getTitle().isEmpty() ? s.getTitle() : null);
+            m.put("agentName", s.getAgentId() != null ? agentNames.getOrDefault(s.getAgentId().toString(), "-") : "-");
+            m.put("createdAt", s.getCreatedAt());
+            m.put("lastActive", s.getUpdatedAt());
+            return m;
+        }).toList();
+
+        return Result.ok(list);
+    }
 }
