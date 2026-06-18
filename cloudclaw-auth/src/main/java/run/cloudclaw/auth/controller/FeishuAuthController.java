@@ -55,7 +55,7 @@ public class FeishuAuthController {
     private final JwtTokenProvider jwtTokenProvider;
     private final PasswordEncoder passwordEncoder;
 
-    @Value("${cloudclaw.auth.feishu.frontend-url:http://localhost:8080}")
+    @Value("${cloudclaw.frontend-url:${cloudclaw.auth.feishu.frontend-url:http://localhost:8080}}")
     private String frontendUrl;
 
     private static final String FEISHU_AUTH_URL = "https://open.feishu.cn/open-apis/authen/v1/authorize";

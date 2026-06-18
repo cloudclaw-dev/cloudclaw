@@ -1,0 +1,1 @@
+import{a,b as o}from"./vendor-vue-zq1kODKU.js";const e=a(!1),s=localStorage.getItem("theme");s==="dark"&&(e.value=!0,document.documentElement.classList.add("dark"));o(e,t=>{document.documentElement.classList.toggle("dark",t),localStorage.setItem("theme",t?"dark":"light")});function l(){return{isDark:e,toggleDark:()=>{e.value=!e.value}}}export{l as u};

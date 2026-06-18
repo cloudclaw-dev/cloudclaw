@@ -27,7 +27,7 @@ public class AdminAgentChannelController {
 
     private final ChannelConfigService channelConfigService;
 
-    @Value("${cloudclaw.auth.feishu.frontend-url:http://localhost:8080}")
+    @Value("${cloudclaw.frontend-url:${cloudclaw.auth.feishu.frontend-url:http://localhost:8080}}")
     private String frontendUrl;
 
     /**

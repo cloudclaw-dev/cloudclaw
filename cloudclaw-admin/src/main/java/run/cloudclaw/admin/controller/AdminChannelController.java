@@ -32,7 +32,7 @@ public class AdminChannelController {
     private final ChannelConfigService channelConfigService;
     private final ObjectProvider<ChannelLifecycleManager> lifecycleManagerProvider;
 
-    @Value("${cloudclaw.auth.feishu.frontend-url:http://localhost:8080}")
+    @Value("${cloudclaw.frontend-url:${cloudclaw.auth.feishu.frontend-url:http://localhost:8080}}")
     private String frontendUrl;
 
     // ===== CRUD =====
