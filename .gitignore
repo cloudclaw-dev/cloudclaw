@@ -1,24 +1,27 @@
-# Build
 target/
-build/
-dist/
-
-# IDE
+*.class
+node_modules/
+.DS_Store
 .idea/
 *.iml
-.vscode/
-.settings/
-.project
-.classpath
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Node
-node_modules/
-npm-debug.log*
-
-# Runtime
 *.log
-logs/
+*.db
+*.db-shm
+*.db-wal
+.env
+
+# Temp files
+tmp*
+NUL
+dev/
+cloudclaw-app/src/main/resources/static/chat/
+org/
+*.jar
+*.tar
+*.zip
+cloudclaw-archive*
+tmp_build.log
+startup_stdout.log
+startup_stderr.log
+dist/
+Dockerfile.simple
