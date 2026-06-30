@@ -19,21 +19,26 @@ public class SandboxFactory {
 
     public static Sandbox create(SandboxProvider provider, String prefix) {
         if (provider == null) {
-            return createLocal(prefix);
+            throw new IllegalArgumentException("Sandbox provider is required when backend is not explicitly configured");
         }
         return switch (provider.getType()) {
             case "DOCKER" -> createDocker(provider);
             case "E2B" -> createE2B(provider);
-            default -> createLocal(provider, prefix);
+            case "LOCAL" -> createLocal(provider, prefix);
+            default -> throw new IllegalArgumentException("Unsupported sandbox provider type: " + provider.getType());
         };
     }
 
     /** Legacy support: create from backend type string */
     public static Sandbox create(String backend, String prefix) {
+        if (backend == null || backend.isBlank()) {
+            throw new IllegalArgumentException("Sandbox backend is required");
+        }
         return switch (backend) {
             case "DOCKER" -> DockerSandbox.builder().image("python:3.11-slim").build();
             case "E2B" -> E2BSandbox.builder().build();
-            default -> LocalSandbox.builder().tempDirectory(prefix).build();
+            case "LOCAL" -> LocalSandbox.builder().tempDirectory(prefix).build();
+            default -> throw new IllegalArgumentException("Unsupported sandbox backend: " + backend);
         };
     }
 

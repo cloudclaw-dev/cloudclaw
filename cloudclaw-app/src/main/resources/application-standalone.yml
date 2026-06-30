@@ -27,7 +27,7 @@ cloudclaw:
     default-timeout: 30s
     max-timeout: 5m
     max-concurrent: 10
-    allowed-languages: python,javascript,shell,java
+    allowed-languages: python,javascript,java
     docker:
       enabled: false
       images:

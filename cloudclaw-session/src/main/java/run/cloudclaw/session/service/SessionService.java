@@ -5,9 +5,11 @@ import run.cloudclaw.common.dto.PageResult;
 import run.cloudclaw.common.dto.PollResult;
 import run.cloudclaw.common.exception.BusinessException;
 import run.cloudclaw.common.exception.ErrorCode;
+import run.cloudclaw.common.model.Agent;
 import run.cloudclaw.common.model.Message;
 import run.cloudclaw.common.model.Session;
 import run.cloudclaw.common.repository.SessionItemRepository;
+import jakarta.persistence.EntityManager;
 import run.cloudclaw.session.cache.SessionCache;
 import run.cloudclaw.session.repository.MessageRepository;
 import run.cloudclaw.common.event.SessionDeleteEvent;
@@ -39,6 +41,7 @@ public class SessionService {
     private final SessionRepository sessionRepository;
     private final MessageRepository messageRepository;
     private final SessionItemRepository sessionItemRepository;
+    private final EntityManager entityManager;
     private final SessionCache sessionCache;
     private final ApplicationEventPublisher eventPublisher;
 
@@ -51,6 +54,18 @@ public class SessionService {
 
     @Transactional
     public Session createSession(String userId, String agentId, String title) {
+        UUID agentUuid;
+        try {
+            agentUuid = UUID.fromString(agentId);
+        } catch (IllegalArgumentException e) {
+            throw new BusinessException(ErrorCode.AGENT_NOT_FOUND, agentId);
+        }
+
+        Agent agent = entityManager.find(Agent.class, agentUuid);
+        if (agent == null || !Boolean.TRUE.equals(agent.getEnabled())) {
+            throw new BusinessException(ErrorCode.AGENT_NOT_FOUND, agentId);
+        }
+
         Session session = new Session();
         session.setUserId(userId);
         session.setAgentId(agentId);

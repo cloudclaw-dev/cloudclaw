@@ -357,7 +357,7 @@ INSERT INTO agents (id, name, description, system_prompt, model_id, temperature,
 INSERT INTO agents (id, name, description, system_prompt, model_id, temperature, max_tokens, max_tool_calls, compression_threshold, compression_keep_rounds, context_usage_threshold, enable_memory_tools, memory_profile_max_tokens, memory_task_max_tokens, sandbox_enabled, sandbox_backend, sandbox_mode, created_by, enabled) VALUES
     ('d0663eb2-4c8e-4b9a-9c2a-3f8e1d5a7b9c', 'Sandbox Agent', 'A code execution assistant',
      'You are a code execution assistant. You MUST use the sandbox_execute tool to run any code. Never answer code questions without executing the code first.',
-     'gpt-4o', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000, true, 'LOCAL', 'STATELESS', '00000000-0000-0000-0000-000000000001', true);
+     'gpt-4o', 0.7, 4096, 50, 20, 6, 0.75, true, 1000, 2000, false, 'DOCKER', 'STATELESS', '00000000-0000-0000-0000-000000000001', false);
 
 -- LLM preset providers
 INSERT INTO llm_providers (id, name, display_name, api_base, provider_type) VALUES
