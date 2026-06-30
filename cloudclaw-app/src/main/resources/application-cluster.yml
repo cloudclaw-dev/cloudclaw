@@ -34,14 +34,14 @@ cloudclaw:
     agent-ttl: 1h
     memory-ttl: 10m
   sandbox:
-    default-backend: LOCAL
+    default-backend: DOCKER
     default-mode: STATELESS
     default-timeout: 30s
     max-timeout: 5m
     max-concurrent: 20
-    allowed-languages: python,javascript,shell,java
+    allowed-languages: python,javascript,java
     docker:
-      enabled: false
+      enabled: true
       images:
         python: python:3.11-slim
         javascript: node:20-slim
